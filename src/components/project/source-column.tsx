@@ -16,9 +16,10 @@ type Props = {
   onAddItems: (items: ProjectItem[]) => void;
   onEditItem: (item: ProjectItem) => void;
   onDeleteItem: (itemId: string) => void;
+  onDuplicate: () => void;
 };
 
-export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem }: Props) {
+export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onDuplicate }: Props) {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<ProjectItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<ProjectItem | null>(null);
@@ -40,8 +41,9 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem }: P
           <div className="h-2 shrink-0" style={{ backgroundColor: source.color }} />
           <div className="flex items-center justify-between px-4 py-3">
           <h2 className="text-2xl font-semibold">{source.name}</h2>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={onDuplicate}>
           <Copy className="h-4 w-4" />
+          <span className="sr-only">Duplicate source</span>
           </Button>
           </div>
           <div className="flex flex-col gap-2 px-4">

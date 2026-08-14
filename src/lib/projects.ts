@@ -144,6 +144,33 @@ export function resolveItemDateRange(item: ProjectItem, source: ProjectSource): 
   };
 }
 
+// "Name" -> "Name copy" -> "Name copy 2" -> "Name copy 3" ..., skipping
+// whatever's already taken among sibling source names.
+function nextCopyName(baseName: string, existingNames: string[]): string {
+  const taken = new Set(existingNames);
+  const base = `${baseName} copy`;
+  if (!taken.has(base)) return base;
+
+  for (let n = 2; ; n += 1) {
+    const candidate = `${base} ${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
+// A deep copy of a source: fresh ids for the source and every item (so
+// nothing is shared by reference with the original), with a name derived
+// from nextCopyName. Any item whose schedule points at "source-start" /
+// "source-end" keeps pointing at whichever source it lives in, so it
+// correctly re-resolves against the new source's own items.
+export function duplicateSource(source: ProjectSource, existingNames: string[]): ProjectSource {
+  return {
+    id: crypto.randomUUID(),
+    name: nextCopyName(source.name, existingNames),
+    color: source.color,
+    items: source.items.map((item) => ({ id: crypto.randomUUID(), data: structuredClone(item.data) })),
+  };
+}
+
 const PROJECT_INDEX_KEY = "projects:index";
 
 export function getProjectIndex(): Project[] {

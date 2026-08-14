@@ -15,8 +15,9 @@ type Props = {
   onAddItem: (sourceId: string, items: ProjectItem[]) => void;
   onEditItem: (sourceId: string, item: ProjectItem) => void;
   onDeleteItem: (sourceId: string, itemId: string) => void;
+  onDuplicateSource: (sourceId: string) => void;
 }
-export function ProjectEditor({ project, onAddSource, onAddItem, onEditItem, onDeleteItem }: Props) {
+export function ProjectEditor({ project, onAddSource, onAddItem, onEditItem, onDeleteItem, onDuplicateSource }: Props) {
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   
   return (
@@ -33,7 +34,7 @@ export function ProjectEditor({ project, onAddSource, onAddItem, onEditItem, onD
           
           <section className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-2">
           {project.sources.map((source) => (
-                                            <SourceColumn key={source.id} source={source} onAddItems={(items) => onAddItem(source.id, items)} onEditItem={(item) => onEditItem(source.id, item)} onDeleteItem={(itemId) => onDeleteItem(source.id, itemId)} />
+                                            <SourceColumn key={source.id} source={source} onAddItems={(items) => onAddItem(source.id, items)} onEditItem={(item) => onEditItem(source.id, item)} onDeleteItem={(itemId) => onDeleteItem(source.id, itemId)} onDuplicate={() => onDuplicateSource(source.id)} />
                                             ))}
           
           <button type="button" onClick={() => setAddSourceOpen(true)} className="flex min-w-[315px] flex-1 items-center justify-center rounded-lg border-2 border-dashed border-emerald-400 bg-emerald-100/40 text-emerald-500 transition hover:bg-emerald-100/70">

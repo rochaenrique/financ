@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   getProject,
   saveProject,
+  duplicateSource,
   type Project,
   type ProjectItem,
   type ProjectSource,
@@ -154,7 +155,25 @@ export default function ProjectPage() {
     saveProject(updatedProject);
     setProject(updatedProject);
   };
-  
+
+  const handleDuplicateSource = (sourceId: string) => {
+    if (!project) return;
+
+    const source = project.sources.find((s) => s.id === sourceId);
+    if (!source) return;
+
+    const duplicate = duplicateSource(source, project.sources.map((s) => s.name));
+
+    const updatedProject: Project = {
+      ...project,
+      modified: new Date().toISOString(),
+      sources: [...project.sources, duplicate],
+    };
+
+    saveProject(updatedProject);
+    setProject(updatedProject);
+  };
+
   return (
           <main className="flex h-screen flex-col overflow-hidden bg-background">
           <div className=" flex h-12 shrink-0 items-center border-b px-4">
@@ -165,7 +184,7 @@ export default function ProjectPage() {
           <span className="text-sm font-medium">{project.name}</span>
           </div>
           
-          <ProjectEditor project={project} onAddSource={handleAddSource} onAddItem={handleAddItems} onEditItem={handleEditItem} onDeleteItem={handleDeleteItem}/>
+          <ProjectEditor project={project} onAddSource={handleAddSource} onAddItem={handleAddItems} onEditItem={handleEditItem} onDeleteItem={handleDeleteItem} onDuplicateSource={handleDuplicateSource}/>
           </main>
           );
 }
