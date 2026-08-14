@@ -144,6 +144,59 @@ export function resolveItemDateRange(item: ProjectItem, source: ProjectSource): 
   };
 }
 
+// Fixed saturation/lightness so every generated source color reads as a
+// vibrant, legible accent -- random hue is enough variety on its own, and
+// keeps colors away from the muddy/washed-out results a fully random RGB
+// triple can produce.
+const SOURCE_COLOR_SATURATION = 70;
+const SOURCE_COLOR_LIGHTNESS = 55;
+
+function hslToHex(h: number, s: number, l: number): string {
+  const sNorm = s / 100;
+  const lNorm = l / 100;
+  const c = (1 - Math.abs(2 * lNorm - 1)) * sNorm;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = lNorm - c / 2;
+  const [r, g, b] =
+    h < 60 ? [c, x, 0] :
+    h < 120 ? [x, c, 0] :
+    h < 180 ? [0, c, x] :
+    h < 240 ? [0, x, c] :
+    h < 300 ? [x, 0, c] :
+    [c, 0, x];
+  const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function hexToHue(hex: string): number {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  if (delta === 0) return 0;
+
+  const hue = max === r ? ((g - b) / delta) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+  return hue < 0 ? hue * 60 + 360 : hue * 60;
+}
+
+// A random, UI-friendly source color: random hue at a fixed vibrant
+// saturation/lightness so it always pops against the light backgrounds it's
+// used on (chart markers, legend dots, results-table row tint).
+export function randomSourceColor(): string {
+  return hslToHex(Math.random() * 360, SOURCE_COLOR_SATURATION, SOURCE_COLOR_LIGHTNESS);
+}
+
+// A color for a duplicated source: the original's hue rotated well away
+// (120-240 degrees, i.e. past its complement, with some jitter) so a copy
+// is easy to tell apart from its original at a glance rather than risking
+// a coincidental near-identical re-roll.
+function differentSourceColor(originalColor: string): string {
+  const hue = (hexToHue(originalColor) + 120 + Math.random() * 120) % 360;
+  return hslToHex(hue, SOURCE_COLOR_SATURATION, SOURCE_COLOR_LIGHTNESS);
+}
+
 // "Name" -> "Name copy" -> "Name copy 2" -> "Name copy 3" ..., skipping
 // whatever's already taken among sibling source names.
 function nextCopyName(baseName: string, existingNames: string[]): string {
@@ -158,15 +211,16 @@ function nextCopyName(baseName: string, existingNames: string[]): string {
 }
 
 // A deep copy of a source: fresh ids for the source and every item (so
-// nothing is shared by reference with the original), with a name derived
-// from nextCopyName. Any item whose schedule points at "source-start" /
-// "source-end" keeps pointing at whichever source it lives in, so it
-// correctly re-resolves against the new source's own items.
+// nothing is shared by reference with the original), a name derived from
+// nextCopyName, and a color shifted away from the original's so the two are
+// easy to tell apart at a glance. Any item whose schedule points at
+// "source-start" / "source-end" keeps pointing at whichever source it lives
+// in, so it correctly re-resolves against the new source's own items.
 export function duplicateSource(source: ProjectSource, existingNames: string[]): ProjectSource {
   return {
     id: crypto.randomUUID(),
     name: nextCopyName(source.name, existingNames),
-    color: source.color,
+    color: differentSourceColor(source.color),
     items: source.items.map((item) => ({ id: crypto.randomUUID(), data: structuredClone(item.data) })),
   };
 }

@@ -1,5 +1,6 @@
 import type { PdfSelectedDataset } from "@/components/project/pdf-import-dialog"
 import type { ProjectItem, ProjectSource } from "@/lib/projects"
+import { randomSourceColor } from "@/lib/projects"
 import { parseImportedDate, parseImportedNumber } from "@/lib/utils"
 
 export function getItemsFromDataset(data: PdfSelectedDataset): ProjectItem[] {
@@ -133,12 +134,10 @@ export function getSourcedFromDatasets(datasets: PdfSelectedDataset[]): ProjectS
       continue; 
     }
     
-    const color = `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0")}`;
-    
     newSources.push({
                       id: crypto.randomUUID(),
                       name: data.title ?? "Imported Data",
-                      color,
+                      color: randomSourceColor(),
                       items: newItems,
                     });
   }

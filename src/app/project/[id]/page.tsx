@@ -10,6 +10,7 @@ import {
   getProject,
   saveProject,
   duplicateSource,
+  randomSourceColor,
   type Project,
   type ProjectItem,
   type ProjectSource,
@@ -86,12 +87,10 @@ export default function ProjectPage() {
   const handleAddSource = (items: ProjectItem[]) => {
     if (!project) return;
     
-    const color = `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0")}`;
-    
     const source: ProjectSource = {
       id: crypto.randomUUID(),
       name: "New Source",
-      color,
+      color: randomSourceColor(),
       items,
     };
     
