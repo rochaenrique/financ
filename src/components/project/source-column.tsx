@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react";
-import { Copy, Plus, Pencil, Trash2, GripVertical, CalendarDays } from "lucide-react";
+import { Copy, Plus, Pencil, Trash2, Eye, EyeOff, GripVertical, CalendarDays } from "lucide-react";
 
 import type { ProjectItem, ProjectItemFrequency, ProjectSource } from "@/lib/projects";
 import { resolveItemDateRange } from "@/lib/projects";
-import { toDate } from "@/lib/utils";
+import { toDate, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ItemIcon } from "./item-icon";
@@ -16,10 +16,11 @@ type Props = {
   onAddItems: (items: ProjectItem[]) => void;
   onEditItem: (item: ProjectItem) => void;
   onDeleteItem: (itemId: string) => void;
+  onToggleItemDisabled: (itemId: string) => void;
   onDuplicate: () => void;
 };
 
-export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onDuplicate }: Props) {
+export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onToggleItemDisabled, onDuplicate }: Props) {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<ProjectItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<ProjectItem | null>(null);
@@ -48,16 +49,20 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onD
           </div>
           <div className="flex flex-col gap-2 px-4">
           {source.items.map((item) =>
-                            <div key={item.id} className="flex h-11 items-center rounded-lg border border-slate-400 bg-background px-1">
+                            <div key={item.id} className={cn("flex h-11 items-center rounded-lg border border-slate-400 bg-background px-1", item.isDisabled && "opacity-50")}>
                             <GripVertical className="h-5 w-5 shrink-0 text-muted-foreground" />
                             <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
                             <ItemIcon type={item.data.type} />
-                            <span className="truncate text-sm font-semibold">{item.data.type}</span>
+                            <span className={cn("truncate text-sm font-semibold", item.isDisabled && "line-through")}>{item.data.type}</span>
                             </div>
                             <div className="flex items-center gap-1">
                             <div className="flex h-7 max-w-44 items-center justify-center truncate rounded bg-slate-200 px-2 text-xs" title={formatItemSchedule(item, source)}>
                             <CalendarDays className="mr-1 h-4 w-4 shrink-0" />{formatItemSchedule(item, source)}
                             </div>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onToggleItemDisabled(item.id)}>
+                            {item.isDisabled ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            <span className="sr-only">{item.isDisabled ? "Enable item" : "Disable item"}</span>
+                            </Button>
                             {item.data.type !== "timed-values" && (
                                                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setItemToEdit(item)}>
                                                                     <Pencil className="h-4 w-4" />

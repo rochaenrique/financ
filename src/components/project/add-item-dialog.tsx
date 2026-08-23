@@ -132,8 +132,8 @@ function DateRefField({ label, mode, onModeChange, value, onValueChange, sourceD
                                     <div className="flex h-[38px] w-full items-center rounded-md border bg-muted px-3 text-sm text-muted-foreground">{sourceDate ? formatPreviewDate(sourceDate) : "—"}</div>
                                     )}
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <input type="checkbox" checked={mode === "source"} disabled={!sourceDate} onChange={(e) => onModeChange(e.target.checked ? "source" : "custom")} />
-          {sourceLabel}{!sourceDate && " (no dated items in this source yet)"}
+          <input type="checkbox" checked={mode === "source"} disabled={!sourceDate && mode !== "source"} onChange={(e) => onModeChange(e.target.checked ? "source" : "custom")} />
+          {sourceLabel}{!sourceDate && (mode === "source" ? " (no longer resolves — pick a date or uncheck)" : " (no dated items in this source yet)")}
           </label>
           </div>
           );
@@ -249,7 +249,14 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
                                       <>
                                       <DialogHeader><DialogTitle>{editingItem ? "Edit" : "Add"} {MANUAL_TYPE_LABELS[step.itemType]}</DialogTitle><DialogDescription>Choose the value, frequency, and when the schedule applies.</DialogDescription></DialogHeader>
                                       <div className="flex flex-col gap-5 pt-2">
-                                      <div className="flex flex-col gap-1.5"><label className="text-sm font-medium">Value</label><input type="number" step="any" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" className="w-full rounded-md border bg-background px-3 py-2 text-sm" /></div>
+                                      <div className="flex flex-col gap-1.5">
+                                      <label className="text-sm font-medium">{step.itemType === "fixed-value" ? "Value" : "Rate"}</label>
+                                      <div className="relative">
+                                      <input type="number" step="any" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" className={`w-full rounded-md border bg-background px-3 py-2 text-sm ${step.itemType === "fixed-value" ? "" : "pr-7"}`} />
+                                      {step.itemType !== "fixed-value" && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>}
+                                      </div>
+                                      {step.itemType !== "fixed-value" && <p className="text-xs text-muted-foreground">Rate per {FREQUENCY_SINGULAR[frequencyUnit]}, e.g. 5 means 5%.</p>}
+                                      </div>
                                       
                                       <div className="rounded-lg border p-4">
                                       <div className="mb-3 text-sm font-semibold">Frequency</div>

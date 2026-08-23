@@ -43,6 +43,10 @@ export type ProjectItemData = {
 export type ProjectItem = {
   id: string;
   data: ProjectItemData;
+  // When true, the item is excluded from every computation -- points, sums,
+  // chart, index correction, and sibling source-data date resolution -- as
+  // if it didn't exist, without losing its configuration.
+  isDisabled?: boolean;
 }
 
 export type ProjectSource = {
@@ -106,7 +110,7 @@ export function getSourceDateRange(source: ProjectSource, excludeItemId?: string
   let end: Date | null = null;
 
   for (const item of source.items) {
-    if (item.id === excludeItemId) continue;
+    if (item.id === excludeItemId || item.isDisabled) continue;
     const range = itemConcreteDateRange(item);
     if (!range) continue;
     if (!start || range.start < start) start = range.start;

@@ -1,16 +1,16 @@
 "use client"
 
 import type { ProjectSource } from "@/lib/projects"
-import { sumSourceValue } from "@/lib/valuation"
+import { sumSourceValue, sumCorrectedSourceValue } from "@/lib/valuation"
 
 type Props = { sources: ProjectSource[] };
 
-type SourceResult = { id: string, name: string, color: string, vam: number, comparedVam: number };
+type SourceResult = { id: string, name: string, color: string, raw: number, vam: number, comparedVam: number };
 
 function computeResults(sources: ProjectSource[]): SourceResult[] {
-  const vams = sources.map((source) => ({ source, vam: sumSourceValue(source) }));
+  const vams = sources.map((source) => ({ source, raw: sumSourceValue(source), vam: sumCorrectedSourceValue(source) }));
   const lowestVam = vams.length > 0 ? Math.min(...vams.map((v) => v.vam)) : 0;
-  return vams.map(({ source, vam }) => ({ id: source.id, name: source.name, color: source.color, vam, comparedVam: vam - lowestVam }));
+  return vams.map(({ source, raw, vam }) => ({ id: source.id, name: source.name, color: source.color, raw, vam, comparedVam: vam - lowestVam }));
 }
 
 function formatVam(value: number): string {
@@ -37,6 +37,7 @@ export function ResultsTable({ sources }: Props) {
                                         <thead>
                                         <tr className="border-b">
                                         <th className="px-2 py-1 text-left font-semibold">Fonte</th>
+                                        <th className="px-2 py-1 text-right font-semibold" title="Sum of raw values, ignoring any simple/compound-index correction">Raw</th>
                                         <th className="px-2 py-1 text-right font-semibold">VAM</th>
                                         <th className="px-2 py-1 text-right font-semibold">VAM Comparado</th>
                                         </tr>
@@ -46,6 +47,7 @@ export function ResultsTable({ sources }: Props) {
                                                                   // NOTE: assumes source.color is a 6-digit hex string; the trailing "33" appends ~20% alpha for the row tint
                                                                   <tr key={result.id} style={{ backgroundColor: `${result.color}33` }}>
                                                                   <td className="px-4 py-2 font-semibold">{result.name}</td>
+                                                                  <td className="px-2 py-2 text-right text-muted-foreground">{formatVam(result.raw)}</td>
                                                                   <td className="px-2 py-2 text-right">{formatVam(result.vam)}</td>
                                                                   <td className="px-2 py-2 text-right">{formatComparedVam(result.comparedVam)}</td>
                                                                   </tr>
