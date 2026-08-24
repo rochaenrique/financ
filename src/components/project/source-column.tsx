@@ -111,6 +111,13 @@ function formatItemSchedule(item: ProjectItem, source: ProjectSource): string {
     return `${formatDate(start)} → ${formatDate(end)}`;
   }
 
+  if (item.data.type === "index-series") {
+    if (item.data.times.length === 0) return "No dates";
+    const { start, end } = resolveItemDateRange(item, source);
+    const arrow = (item.data.direction ?? "future") === "past" ? "←" : "→";
+    return start && end ? `${formatDate(start)} → ${formatDate(end)} · settles ${arrow}` : "No dates";
+  }
+
   const schedule = item.data.schedule;
   const frequency = formatFrequency(schedule.frequency);
 

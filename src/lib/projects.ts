@@ -50,6 +50,16 @@ export type ProjectItemData = {
   frequency: ProjectItemFrequency;
   schedule: ProjectItemSchedule;
   direction?: IndexDirection;
+} | {
+  // A researched index (inflation, CPI, etc.): a dated series of readings,
+  // same shape as timed-values, used purely as a correction factor -- the
+  // ratio between the reading at a raw point's date and the reading at the
+  // settle date (direction's future/past end). Contributes no value of its
+  // own to Raw, same as compound/simple-index.
+  type: "index-series";
+  values: number[];
+  times: Date[];
+  direction?: IndexDirection;
 }
 
 export type ProjectItem = {
@@ -93,7 +103,7 @@ export function isSourceDateRef(ref: DateRef): ref is { kind: "source-start" | "
 // source-start/source-end reference. Used to aggregate a source's range
 // without recursing into other referencing items.
 function itemConcreteDateRange(item: ProjectItem): { start: Date; end: Date } | null {
-  if (item.data.type === "timed-values") {
+  if (item.data.type === "timed-values" || item.data.type === "index-series") {
     const { times } = item.data;
     if (times.length === 0) return null;
     const timestamps = times.map((time) => toDate(time).getTime());
@@ -141,7 +151,7 @@ function resolveDateRef(ref: DateRef, source: ProjectSource, excludeItemId?: str
 // The effective date range of an item, resolving any source-start/source-end
 // references against the current state of its source.
 export function resolveItemDateRange(item: ProjectItem, source: ProjectSource): { start: Date | null; end: Date | null } {
-  if (item.data.type === "timed-values") {
+  if (item.data.type === "timed-values" || item.data.type === "index-series") {
     return itemConcreteDateRange(item) ?? { start: null, end: null };
   }
 

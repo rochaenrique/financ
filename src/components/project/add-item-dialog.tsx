@@ -27,12 +27,14 @@ type Props = {
   editingItem?: ProjectItem | null;
 };
 
-type ManualItemType = Exclude<ProjectItemData["type"], "timed-values">;
+type ManualItemType = Exclude<ProjectItemData["type"], "timed-values" | "index-series">;
 type ScheduleKind = ProjectItemSchedule["kind"];
-type Step = { kind: "picker" } | { kind: "manual"; itemType: ManualItemType } | { kind: "pdf" };
+type PdfResultType = "timed-values" | "index-series";
+type Step = { kind: "picker" } | { kind: "manual"; itemType: ManualItemType } | { kind: "index-series-direction" } | { kind: "pdf"; resultType: PdfResultType };
 
 const TYPE_OPTIONS: { type: ProjectItemData["type"]; label: string; description: string }[] = [
                                                                                                { type: "timed-values", label: "Time Series", description: "Import a dated series of values from a PDF, like a payment schedule." },
+                                                                                               { type: "index-series", label: "Index Series", description: "Import a researched index (e.g. inflation) from a PDF, to correct other items in this source." },
                                                                                                { type: "compound-index", label: "Compound Index", description: "A single rate that compounds over a repeating schedule." },
                                                                                                { type: "simple-index", label: "Simple Index", description: "A single non-compounding rate or percentage applied on a schedule." },
                                                                                                { type: "fixed-value", label: "Fixed Value", description: "A constant value applied on a schedule." },
@@ -97,9 +99,14 @@ const BLANK_FORM_STATE: FormState = {
 };
 
 // The dialog opens with either a blank "add" form or, when editing, the
-// existing item's values pre-filled into the same manual form.
+// existing item's values pre-filled into the same manual form (index-series
+// only has a direction to edit -- its dates/values aren't editable here).
 function initialFormState(editingItem: ProjectItem | null | undefined): FormState {
   if (!editingItem || editingItem.data.type === "timed-values") return BLANK_FORM_STATE;
+
+  if (editingItem.data.type === "index-series") {
+    return { ...BLANK_FORM_STATE, step: { kind: "index-series-direction" }, direction: editingItem.data.direction ?? "future" };
+  }
 
   const { data } = editingItem;
   const { schedule } = data;
@@ -182,7 +189,21 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
   }
   
   function handlePickType(type: ProjectItemData["type"]) {
-    setStep(type === "timed-values" ? { kind: "pdf" } : { kind: "manual", itemType: type });
+    if (type === "timed-values") { setStep({ kind: "pdf", resultType: "timed-values" }); return; }
+    if (type === "index-series") { setStep({ kind: "index-series-direction" }); return; }
+    setStep({ kind: "manual", itemType: type });
+  }
+
+  // Index-series has nothing to configure but which end it settles toward --
+  // editing just updates that in place; adding continues into the same PDF
+  // import flow timed-values uses, tagging the result as "index-series".
+  function handleIndexSeriesDirectionContinue() {
+    if (editingItem && editingItem.data.type === "index-series") {
+      onEditItem?.({ ...editingItem, data: { ...editingItem.data, direction } });
+      handleOpenChange(false);
+      return;
+    }
+    setStep({ kind: "pdf", resultType: "index-series" });
   }
   
   function buildFrequency(): ProjectItemFrequency {
@@ -227,7 +248,11 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
 
   function handlePdfUpload(datasets: PdfSelectedDataset[]) {
     const items = getItemsFromDatasets(datasets);
-    if (items.length > 0) onAddItems(items);
+    const resultType = step.kind === "pdf" ? step.resultType : "timed-values";
+    const tagged = resultType === "index-series"
+      ? items.map((item): ProjectItem => item.data.type === "timed-values" ? { ...item, data: { type: "index-series", times: item.data.times, values: item.data.values, direction } } : item)
+      : items;
+    if (tagged.length > 0) onAddItems(tagged);
   }
 
   const isManualValid = step.kind === "manual" && value.trim() !== "" && Number.isFinite(Number(value)) && Number.isInteger(Number(frequencyEvery)) && Number(frequencyEvery) > 0 && ((scheduleKind === "count" && resolvedReferenceDate !== null && Number.isInteger(Number(occurrences)) && Number(occurrences) > 0) || (scheduleKind === "range" && resolvedRangeStart !== null && resolvedRangeEnd !== null && resolvedRangeStart <= resolvedRangeEnd) || (scheduleKind === "entire" && referenceDate !== ""));
@@ -314,9 +339,24 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
                                       <DialogFooter className="pt-2">{editingItem ? <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>Cancel</Button> : <Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>}<Button type="button" onClick={handleManualSubmit} disabled={!isManualValid}>{editingItem ? "Save changes" : "Add item"}</Button></DialogFooter>
                                       </>
                                       )}
+
+          {step.kind === "index-series-direction" && (
+                                                        <>
+                                                        <DialogHeader><DialogTitle>{editingItem ? "Edit" : "Add"} Index Series</DialogTitle><DialogDescription>Choose which end of the imported data raw values settle toward.{!editingItem && " You'll pick the PDF table next."}</DialogDescription></DialogHeader>
+                                                        <div className="flex flex-col gap-2 pt-2">
+                                                        <label className="text-sm font-medium">Settle to</label>
+                                                        <select value={direction} onChange={(e) => setDirection(e.target.value as IndexDirection)} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                                                        <option value="future">Latest reading (future value)</option>
+                                                        <option value="past">Earliest reading (present value)</option>
+                                                        </select>
+                                                        <p className="text-xs text-muted-foreground">{direction === "future" ? "Raw values grow forward to the index's most recent reading — what they're worth today." : "Raw values discount back to the index's earliest reading — what they were worth on day one."}</p>
+                                                        </div>
+                                                        <DialogFooter className="pt-2">{editingItem ? <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>Cancel</Button> : <Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>}<Button type="button" onClick={handleIndexSeriesDirectionContinue}>{editingItem ? "Save changes" : "Continue"}</Button></DialogFooter>
+                                                        </>
+                                                        )}
           </DialogContent>
           </Dialog>
-          
+
           <PdfImportDialog open={open && step.kind === "pdf"} onOpenChange={(nextOpen: boolean) => { if (!nextOpen) handleOpenChange(false); }} onUpload={handlePdfUpload} />
           </>
           );

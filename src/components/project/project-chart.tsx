@@ -6,7 +6,7 @@ import { expandCorrectedSourcePoints, getIndexRegions } from "@/lib/valuation"
 type Props = { sources: ProjectSource[] };
 
 type ChartPoint = { time: Date, value: number, color: string, sourceId: string, sourceName: string };
-type ChartRegion = { kind: "simple" | "compound", direction: "future" | "past", start: Date | null, end: Date, color: string, sourceName: string };
+type ChartRegion = { kind: "simple" | "compound" | "series", direction: "future" | "past", start: Date | null, end: Date, color: string, sourceName: string };
 
 const VIEWBOX_WIDTH = 800;
 const VIEWBOX_HEIGHT = 400;
@@ -14,7 +14,7 @@ const BASE_MARGIN = { top: 24, right: 24, bottom: 36, left: 56 };
 const Y_TICK_COUNT = 4;
 const MARKER_RADIUS = 4;
 const REGION_LANE_HEIGHT = 16;
-const REGION_LABEL: Record<ChartRegion["kind"], string> = { simple: "Simple", compound: "Compound" };
+const REGION_LABEL: Record<ChartRegion["kind"], string> = { simple: "Simple", compound: "Compound", series: "Index" };
 // Points settle toward the arrow's end: forward to the future, or back to the past.
 const REGION_DIRECTION_ARROW: Record<ChartRegion["direction"], string> = { future: "→", past: "←" };
 

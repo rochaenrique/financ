@@ -7,7 +7,7 @@ export type SourcePoint = { time: Date; value: number };
 // The dates a fixed-value item's schedule fires on. "entire" has no bounds
 // yet, so it can't be expanded into a finite list of occurrences.
 function scheduleOccurrences(item: ProjectItem, source: ProjectSource): Date[] {
-  if (item.data.type === "timed-values") return [];
+  if (item.data.type === "timed-values" || item.data.type === "index-series") return [];
   if (item.data.schedule.kind === "entire") return [];
 
   const { schedule } = item.data;
@@ -81,7 +81,7 @@ function periodsBetween(from: Date, to: Date, every: number, unit: FrequencyUnit
 // forward to windowEnd; "past" discounts them back to windowStart (falling
 // back to the source's earliest raw point if the window itself has no
 // start, mirroring how an unbounded window's end falls back to the latest).
-type IndexModifier = {
+type RateModifier = {
   kind: "simple" | "compound";
   direction: IndexDirection;
   rate: number;
@@ -90,6 +90,22 @@ type IndexModifier = {
   windowEnd: Date;
   settleDate: Date;
 };
+
+// A resolved index-series item: a researched index (inflation, CPI, ...)
+// entered as dated readings. Its window is exactly the span of the
+// imported data (both ends always concrete, unlike a rate index), and its
+// factor is a ratio between two readings rather than a per-period rate.
+type SeriesModifier = {
+  kind: "series";
+  direction: IndexDirection;
+  times: Date[]; // sorted ascending
+  values: number[]; // values[i] corresponds to times[i]
+  windowStart: Date;
+  windowEnd: Date;
+  settleDate: Date;
+};
+
+type IndexModifier = RateModifier | SeriesModifier;
 
 // The latest/earliest dates among the source's own raw points -- the
 // fallback settle dates an "entire" (or otherwise unbounded) index uses,
@@ -115,36 +131,73 @@ function resolveIndexModifiers(source: ProjectSource): IndexModifier[] {
 
   for (const item of source.items) {
     if (item.isDisabled) continue;
-    if (item.data.type !== "compound-index" && item.data.type !== "simple-index") continue;
 
-    const { value, frequency, schedule, direction = "future" } = item.data;
-    const kind = item.data.type === "compound-index" ? "compound" : "simple";
+    if (item.data.type === "compound-index" || item.data.type === "simple-index") {
+      const { value, frequency, schedule, direction = "future" } = item.data;
+      const kind = item.data.type === "compound-index" ? "compound" : "simple";
 
-    let windowStart: Date | null;
-    let windowEnd: Date | null;
-    if (schedule.kind === "entire") {
-      windowStart = null;
-      windowEnd = latestRawPointDate(source);
-    } else {
-      const range = resolveItemDateRange(item, source);
-      windowStart = range.start;
-      windowEnd = range.end;
+      let windowStart: Date | null;
+      let windowEnd: Date | null;
+      if (schedule.kind === "entire") {
+        windowStart = null;
+        windowEnd = latestRawPointDate(source);
+      } else {
+        const range = resolveItemDateRange(item, source);
+        windowStart = range.start;
+        windowEnd = range.end;
+      }
+      if (!windowEnd) continue;
+
+      const settleDate = direction === "future" ? windowEnd : (windowStart ?? earliestRawPointDate(source));
+      if (!settleDate) continue;
+
+      modifiers.push({ kind, direction, rate: value / 100, frequency, windowStart, windowEnd, settleDate });
+      continue;
     }
-    if (!windowEnd) continue;
 
-    const settleDate = direction === "future" ? windowEnd : (windowStart ?? earliestRawPointDate(source));
-    if (!settleDate) continue;
+    if (item.data.type === "index-series") {
+      const { times: rawTimes, values, direction = "future" } = item.data;
+      const count = Math.min(rawTimes.length, values.length);
+      if (count === 0) continue;
 
-    modifiers.push({ kind, direction, rate: value / 100, frequency, windowStart, windowEnd, settleDate });
+      const readings = Array.from({ length: count }, (_, i) => ({ time: toDate(rawTimes[i]), value: values[i] })).sort((a, b) => a.time.getTime() - b.time.getTime());
+      const windowStart = readings[0].time;
+      const windowEnd = readings[readings.length - 1].time;
+      const settleDate = direction === "future" ? windowEnd : windowStart;
+
+      modifiers.push({ kind: "series", direction, times: readings.map((r) => r.time), values: readings.map((r) => r.value), windowStart, windowEnd, settleDate });
+    }
   }
 
   return modifiers;
 }
 
-// The window each active simple/compound-index item in a source corrects,
-// for drawing on the chart. start is null for an unbounded ("entire")
-// window.
-export type IndexRegion = { kind: "simple" | "compound"; direction: IndexDirection; start: Date | null; end: Date };
+// Linear interpolation of a series' value at an arbitrary date, between the
+// two readings surrounding it. Assumes times is sorted ascending. Returns
+// null outside the series' own range -- callers only reach dates inside the
+// window anyway (see inWindow), so this is a defensive fallback.
+function seriesLevelAt(times: Date[], values: number[], date: Date): number | null {
+  const t = date.getTime();
+  const first = times[0]?.getTime();
+  const last = times[times.length - 1]?.getTime();
+  if (first === undefined || last === undefined || t < first || t > last) return null;
+
+  for (let i = 0; i < times.length - 1; i += 1) {
+    const t0 = times[i].getTime();
+    const t1 = times[i + 1].getTime();
+    if (t >= t0 && t <= t1) {
+      if (t1 === t0) return values[i];
+      const frac = (t - t0) / (t1 - t0);
+      return values[i] + (values[i + 1] - values[i]) * frac;
+    }
+  }
+  return values[values.length - 1];
+}
+
+// The window each active index item in a source corrects, for drawing on
+// the chart. start is null only for an unbounded ("entire") rate index;
+// index-series windows are always concrete (the span of the imported data).
+export type IndexRegion = { kind: "simple" | "compound" | "series"; direction: IndexDirection; start: Date | null; end: Date };
 
 export function getIndexRegions(source: ProjectSource): IndexRegion[] {
   return resolveIndexModifiers(source).map(({ kind, direction, windowStart, windowEnd }) => ({ kind, direction, start: windowStart, end: windowEnd }));
@@ -159,6 +212,13 @@ function inWindow(modifier: IndexModifier, time: Date): boolean {
 // the start is division by the forward growth factor, not the same formula
 // run with a negated period count (that goes negative over long spans).
 function modifierFactor(modifier: IndexModifier, time: Date): number {
+  if (modifier.kind === "series") {
+    const pointLevel = seriesLevelAt(modifier.times, modifier.values, time);
+    const settleLevel = seriesLevelAt(modifier.times, modifier.values, modifier.settleDate);
+    if (pointLevel === null || settleLevel === null || pointLevel === 0) return 1; // defensive: shouldn't happen given inWindow already bounds `time`
+    return settleLevel / pointLevel;
+  }
+
   if (modifier.direction === "future") {
     const n = periodsBetween(time, modifier.settleDate, modifier.frequency.every, modifier.frequency.unit);
     return modifier.kind === "compound" ? Math.pow(1 + modifier.rate, n) : 1 + modifier.rate * n;
