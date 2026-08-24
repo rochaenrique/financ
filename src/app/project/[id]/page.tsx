@@ -172,6 +172,19 @@ export default function ProjectPage() {
     setProject(updatedProject);
   };
 
+  const handleDeleteSource = (sourceId: string) => {
+    if (!project) return;
+
+    const updatedProject: Project = {
+      ...project,
+      modified: new Date().toISOString(),
+      sources: project.sources.filter((source) => source.id !== sourceId),
+    };
+
+    saveProject(updatedProject);
+    setProject(updatedProject);
+  };
+
   const handleDuplicateSource = (sourceId: string) => {
     if (!project) return;
 
@@ -200,7 +213,7 @@ export default function ProjectPage() {
           <span className="text-sm font-medium">{project.name}</span>
           </div>
           
-          <ProjectEditor project={project} onAddSource={handleAddSource} onAddItem={handleAddItems} onEditItem={handleEditItem} onDeleteItem={handleDeleteItem} onToggleItemDisabled={handleToggleItemDisabled} onDuplicateSource={handleDuplicateSource}/>
+          <ProjectEditor project={project} onAddSource={handleAddSource} onAddItem={handleAddItems} onEditItem={handleEditItem} onDeleteItem={handleDeleteItem} onToggleItemDisabled={handleToggleItemDisabled} onDuplicateSource={handleDuplicateSource} onDeleteSource={handleDeleteSource}/>
           </main>
           );
 }

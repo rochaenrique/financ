@@ -18,12 +18,14 @@ type Props = {
   onDeleteItem: (itemId: string) => void;
   onToggleItemDisabled: (itemId: string) => void;
   onDuplicate: () => void;
+  onDelete: () => void;
 };
 
-export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onToggleItemDisabled, onDuplicate }: Props) {
+export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onToggleItemDisabled, onDuplicate, onDelete }: Props) {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<ProjectItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<ProjectItem | null>(null);
+  const [confirmDeleteSource, setConfirmDeleteSource] = useState(false);
 
   function closeItemDialog(open: boolean) {
     if (open) return;
@@ -37,28 +39,37 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onT
     setItemToDelete(null);
   }
 
+  function handleConfirmDeleteSource() {
+    onDelete();
+    setConfirmDeleteSource(false);
+  }
+
   return (
-          <div className="flex min-w-[315px] flex-1 flex-col overflow-hidden rounded-lg bg-background">
+          <div className="flex min-w-[315px] flex-[0_1_380px] flex-col overflow-hidden rounded-lg bg-background">
           <div className="h-2 shrink-0" style={{ backgroundColor: source.color }} />
           <div className="flex items-center justify-between px-4 py-3">
-          <h2 className="text-2xl font-semibold">{source.name}</h2>
+          <h2 className="truncate text-2xl font-semibold">{source.name}</h2>
+          <div className="flex shrink-0 items-center">
           <Button variant="ghost" size="icon" onClick={onDuplicate}>
           <Copy className="h-4 w-4" />
           <span className="sr-only">Duplicate source</span>
           </Button>
+          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => setConfirmDeleteSource(true)}>
+          <Trash2 className="h-4 w-4" />
+          <span className="sr-only">Delete source</span>
+          </Button>
+          </div>
           </div>
           <div className="flex flex-col gap-2 px-4">
           {source.items.map((item) =>
-                            <div key={item.id} className={cn("flex h-11 items-center rounded-lg border border-slate-400 bg-background px-1", item.isDisabled && "opacity-50")}>
+                            <div key={item.id} className={cn("flex flex-col gap-1.5 rounded-lg border border-slate-400 bg-background px-1 py-1.5", item.isDisabled && "opacity-50")}>
+                            <div className="flex items-center">
                             <GripVertical className="h-5 w-5 shrink-0 text-muted-foreground" />
                             <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
                             <ItemIcon type={item.data.type} />
                             <span className={cn("truncate text-sm font-semibold", item.isDisabled && "line-through")}>{item.data.type}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                            <div className="flex h-7 max-w-44 items-center justify-center truncate rounded bg-slate-200 px-2 text-xs" title={formatItemSchedule(item, source)}>
-                            <CalendarDays className="mr-1 h-4 w-4 shrink-0" />{formatItemSchedule(item, source)}
-                            </div>
+                            <div className="flex shrink-0 items-center gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onToggleItemDisabled(item.id)}>
                             {item.isDisabled ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             <span className="sr-only">{item.isDisabled ? "Enable item" : "Disable item"}</span>
@@ -73,6 +84,10 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onT
                             <Trash2 className="h-4 w-4" />
                             <span className="sr-only">Delete item</span>
                             </Button>
+                            </div>
+                            </div>
+                            <div className="flex h-7 items-center gap-1 truncate rounded bg-slate-200 px-2 text-xs" title={formatItemSchedule(item, source)}>
+                            <CalendarDays className="h-4 w-4 shrink-0" />{formatItemSchedule(item, source)}
                             </div>
                             </div>)}
           <Button variant="ghost" className="h-10 w-full bg-slate-300 hover:bg-slate-400" onClick={() => setAddItemOpen(true)}>
@@ -94,6 +109,24 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onT
           <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          Delete
+          </AlertDialogAction>
+          </AlertDialogFooter>
+          </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog open={confirmDeleteSource} onOpenChange={setConfirmDeleteSource}>
+          <AlertDialogContent>
+          <AlertDialogHeader>
+          <AlertDialogTitle>Delete source?</AlertDialogTitle>
+          <AlertDialogDescription>
+          This will permanently delete <span className="font-medium">{source.name}</span> and all {source.items.length} item{source.items.length === 1 ? "" : "s"} in it. This action cannot be undone.
+          </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmDeleteSource} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
           Delete
           </AlertDialogAction>
           </AlertDialogFooter>
