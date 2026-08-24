@@ -29,15 +29,27 @@ export type ProjectItemSchedule = {
   referenceDate: Date;
 }
 
+// Which end of an index item's window raw points settle toward: "future"
+// grows them forward to the window's end (future value, the original
+// behavior); "past" discounts them back to the window's start (present
+// value -- what the money is worth on the first day).
+export type IndexDirection = "future" | "past";
+
 export type ProjectItemData = {
   type: "timed-values";
   values: number[];
   times: Date[];
 } | {
-  type: "compound-index" | "fixed-value" | "simple-index";
+  type: "fixed-value";
   value: number;
   frequency: ProjectItemFrequency;
   schedule: ProjectItemSchedule;
+} | {
+  type: "compound-index" | "simple-index";
+  value: number;
+  frequency: ProjectItemFrequency;
+  schedule: ProjectItemSchedule;
+  direction?: IndexDirection;
 }
 
 export type ProjectItem = {

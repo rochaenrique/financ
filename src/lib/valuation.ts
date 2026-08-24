@@ -1,4 +1,4 @@
-import type { FrequencyUnit, ProjectItem, ProjectSource } from "./projects";
+import type { FrequencyUnit, IndexDirection, ProjectItem, ProjectSource } from "./projects";
 import { addFrequency, resolveItemDateRange } from "./projects";
 import { toDate } from "./utils";
 
@@ -75,25 +75,39 @@ function periodsBetween(from: Date, to: Date, every: number, unit: FrequencyUnit
   return elapsedDays / periodDays;
 }
 
-// A resolved simple/compound-index item: the window of dates it corrects
-// (start is null for "entire", meaning unbounded below), the date raw
-// points are grown/discounted toward, and the rate to apply per period.
+// A resolved simple/compound-index item: the window of dates it covers
+// (windowStart null means unbounded below), the rate to apply per period,
+// and which end of the window points settle toward. "future" grows points
+// forward to windowEnd; "past" discounts them back to windowStart (falling
+// back to the source's earliest raw point if the window itself has no
+// start, mirroring how an unbounded window's end falls back to the latest).
 type IndexModifier = {
   kind: "simple" | "compound";
+  direction: IndexDirection;
   rate: number;
   frequency: { every: number; unit: FrequencyUnit };
   windowStart: Date | null;
+  windowEnd: Date;
   settleDate: Date;
 };
 
-// The latest date among the source's own raw points -- the settle date an
-// "entire" index falls back to, since it has no schedule end of its own.
+// The latest/earliest dates among the source's own raw points -- the
+// fallback settle dates an "entire" (or otherwise unbounded) index uses,
+// since it has no schedule bound of its own on that side.
 function latestRawPointDate(source: ProjectSource): Date | null {
   let latest: Date | null = null;
   for (const point of expandSourcePoints(source)) {
     if (!latest || point.time > latest) latest = point.time;
   }
   return latest;
+}
+
+function earliestRawPointDate(source: ProjectSource): Date | null {
+  let earliest: Date | null = null;
+  for (const point of expandSourcePoints(source)) {
+    if (!earliest || point.time < earliest) earliest = point.time;
+  }
+  return earliest;
 }
 
 function resolveIndexModifiers(source: ProjectSource): IndexModifier[] {
@@ -103,22 +117,25 @@ function resolveIndexModifiers(source: ProjectSource): IndexModifier[] {
     if (item.isDisabled) continue;
     if (item.data.type !== "compound-index" && item.data.type !== "simple-index") continue;
 
-    const { value, frequency, schedule } = item.data;
+    const { value, frequency, schedule, direction = "future" } = item.data;
     const kind = item.data.type === "compound-index" ? "compound" : "simple";
 
     let windowStart: Date | null;
-    let settleDate: Date | null;
+    let windowEnd: Date | null;
     if (schedule.kind === "entire") {
       windowStart = null;
-      settleDate = latestRawPointDate(source);
+      windowEnd = latestRawPointDate(source);
     } else {
       const range = resolveItemDateRange(item, source);
       windowStart = range.start;
-      settleDate = range.end;
+      windowEnd = range.end;
     }
+    if (!windowEnd) continue;
+
+    const settleDate = direction === "future" ? windowEnd : (windowStart ?? earliestRawPointDate(source));
     if (!settleDate) continue;
 
-    modifiers.push({ kind, rate: value / 100, frequency, windowStart, settleDate });
+    modifiers.push({ kind, direction, rate: value / 100, frequency, windowStart, windowEnd, settleDate });
   }
 
   return modifiers;
@@ -127,20 +144,28 @@ function resolveIndexModifiers(source: ProjectSource): IndexModifier[] {
 // The window each active simple/compound-index item in a source corrects,
 // for drawing on the chart. start is null for an unbounded ("entire")
 // window.
-export type IndexRegion = { kind: "simple" | "compound"; start: Date | null; end: Date };
+export type IndexRegion = { kind: "simple" | "compound"; direction: IndexDirection; start: Date | null; end: Date };
 
 export function getIndexRegions(source: ProjectSource): IndexRegion[] {
-  return resolveIndexModifiers(source).map(({ kind, windowStart, settleDate }) => ({ kind, start: windowStart, end: settleDate }));
+  return resolveIndexModifiers(source).map(({ kind, direction, windowStart, windowEnd }) => ({ kind, direction, start: windowStart, end: windowEnd }));
 }
 
 function inWindow(modifier: IndexModifier, time: Date): boolean {
   if (modifier.windowStart && time < modifier.windowStart) return false;
-  return time <= modifier.settleDate;
+  return time <= modifier.windowEnd;
 }
 
+// Simple interest isn't reciprocal like compound is -- discounting back to
+// the start is division by the forward growth factor, not the same formula
+// run with a negated period count (that goes negative over long spans).
 function modifierFactor(modifier: IndexModifier, time: Date): number {
-  const n = periodsBetween(time, modifier.settleDate, modifier.frequency.every, modifier.frequency.unit);
-  return modifier.kind === "compound" ? Math.pow(1 + modifier.rate, n) : 1 + modifier.rate * n;
+  if (modifier.direction === "future") {
+    const n = periodsBetween(time, modifier.settleDate, modifier.frequency.every, modifier.frequency.unit);
+    return modifier.kind === "compound" ? Math.pow(1 + modifier.rate, n) : 1 + modifier.rate * n;
+  }
+
+  const n = periodsBetween(modifier.settleDate, time, modifier.frequency.every, modifier.frequency.unit);
+  return modifier.kind === "compound" ? Math.pow(1 + modifier.rate, -n) : 1 / (1 + modifier.rate * n);
 }
 
 // The source's points after applying every simple/compound-index item that

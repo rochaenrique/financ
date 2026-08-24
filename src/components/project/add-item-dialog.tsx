@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import type { DateRef, FrequencyUnit, ProjectItem, ProjectItemData, ProjectItemFrequency, ProjectItemSchedule, ProjectSource } from "@/lib/projects";
+import type { DateRef, FrequencyUnit, IndexDirection, ProjectItem, ProjectItemData, ProjectItemFrequency, ProjectItemSchedule, ProjectSource } from "@/lib/projects";
 import { getSourceDateRange, isSourceDateRef } from "@/lib/projects";
 import { getItemsFromDatasets } from "@/lib/pdf-datasets";
 import { toDate } from "@/lib/utils";
@@ -70,6 +70,7 @@ type FormState = {
   frequencyEvery: string;
   frequencyUnit: FrequencyUnit;
   scheduleKind: ScheduleKind;
+  direction: IndexDirection;
   referenceDate: string;
   referenceDateMode: DateMode;
   occurrences: string;
@@ -85,6 +86,7 @@ const BLANK_FORM_STATE: FormState = {
   frequencyEvery: "1",
   frequencyUnit: "months",
   scheduleKind: "count",
+  direction: "future",
   referenceDate: todayInputValue(),
   referenceDateMode: "custom",
   occurrences: "1",
@@ -101,7 +103,8 @@ function initialFormState(editingItem: ProjectItem | null | undefined): FormStat
 
   const { data } = editingItem;
   const { schedule } = data;
-  const base: FormState = { ...BLANK_FORM_STATE, step: { kind: "manual", itemType: data.type }, value: String(data.value), frequencyEvery: String(data.frequency.every), frequencyUnit: data.frequency.unit, scheduleKind: schedule.kind };
+  const direction = data.type !== "fixed-value" ? (data.direction ?? "future") : "future";
+  const base: FormState = { ...BLANK_FORM_STATE, step: { kind: "manual", itemType: data.type }, value: String(data.value), frequencyEvery: String(data.frequency.every), frequencyUnit: data.frequency.unit, scheduleKind: schedule.kind, direction };
 
   if (schedule.kind === "count") {
     return { ...base, referenceDate: dateRefInputValue(schedule.referenceDate), referenceDateMode: dateRefMode(schedule.referenceDate), occurrences: String(schedule.occurrences) };
@@ -146,6 +149,7 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
   const [frequencyEvery, setFrequencyEvery] = useState(initial.frequencyEvery);
   const [frequencyUnit, setFrequencyUnit] = useState<FrequencyUnit>(initial.frequencyUnit);
   const [scheduleKind, setScheduleKind] = useState<ScheduleKind>(initial.scheduleKind);
+  const [direction, setDirection] = useState<IndexDirection>(initial.direction);
   const [referenceDate, setReferenceDate] = useState(initial.referenceDate);
   const [referenceDateMode, setReferenceDateMode] = useState<DateMode>(initial.referenceDateMode);
   const [occurrences, setOccurrences] = useState(initial.occurrences);
@@ -162,6 +166,7 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
     setFrequencyEvery(BLANK_FORM_STATE.frequencyEvery);
     setFrequencyUnit(BLANK_FORM_STATE.frequencyUnit);
     setScheduleKind(BLANK_FORM_STATE.scheduleKind);
+    setDirection(BLANK_FORM_STATE.direction);
     setReferenceDate(todayInputValue());
     setReferenceDateMode(BLANK_FORM_STATE.referenceDateMode);
     setOccurrences(BLANK_FORM_STATE.occurrences);
@@ -207,7 +212,10 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
     if (scheduleKind === "entire" && !referenceDate) return;
 
     const schedule = buildSchedule();
-    const item: ProjectItem = { id: editingItem?.id ?? crypto.randomUUID(), data: { type: step.itemType, value: parsedValue, frequency: schedule.frequency, schedule } };
+    const data: ProjectItemData = step.itemType === "fixed-value"
+      ? { type: "fixed-value", value: parsedValue, frequency: schedule.frequency, schedule }
+      : { type: step.itemType, value: parsedValue, frequency: schedule.frequency, schedule, direction };
+    const item: ProjectItem = { id: editingItem?.id ?? crypto.randomUUID(), data };
 
     if (editingItem) {
       onEditItem?.(item);
@@ -257,7 +265,18 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
                                       </div>
                                       {step.itemType !== "fixed-value" && <p className="text-xs text-muted-foreground">Rate per {FREQUENCY_SINGULAR[frequencyUnit]}, e.g. 5 means 5%.</p>}
                                       </div>
-                                      
+
+                                      {step.itemType !== "fixed-value" && (
+                                                                            <div className="flex flex-col gap-2">
+                                                                            <label className="text-sm font-medium">Settle to</label>
+                                                                            <select value={direction} onChange={(e) => setDirection(e.target.value as IndexDirection)} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                                                                            <option value="future">End of the period (future value)</option>
+                                                                            <option value="past">Start of the period (present value)</option>
+                                                                            </select>
+                                                                            <p className="text-xs text-muted-foreground">{direction === "future" ? "Raw values grow forward to the end of the schedule below." : "Raw values discount back to the start of the schedule below — what they're worth on the first day."}</p>
+                                                                            </div>
+                                                                            )}
+
                                       <div className="rounded-lg border p-4">
                                       <div className="mb-3 text-sm font-semibold">Frequency</div>
                                       <div className="grid grid-cols-[1fr_1.4fr] gap-3">

@@ -6,7 +6,7 @@ import { expandCorrectedSourcePoints, getIndexRegions } from "@/lib/valuation"
 type Props = { sources: ProjectSource[] };
 
 type ChartPoint = { time: Date, value: number, color: string, sourceId: string, sourceName: string };
-type ChartRegion = { kind: "simple" | "compound", start: Date | null, end: Date, color: string, sourceName: string };
+type ChartRegion = { kind: "simple" | "compound", direction: "future" | "past", start: Date | null, end: Date, color: string, sourceName: string };
 
 const VIEWBOX_WIDTH = 800;
 const VIEWBOX_HEIGHT = 400;
@@ -15,6 +15,8 @@ const Y_TICK_COUNT = 4;
 const MARKER_RADIUS = 4;
 const REGION_LANE_HEIGHT = 16;
 const REGION_LABEL: Record<ChartRegion["kind"], string> = { simple: "Simple", compound: "Compound" };
+// Points settle toward the arrow's end: forward to the future, or back to the past.
+const REGION_DIRECTION_ARROW: Record<ChartRegion["direction"], string> = { future: "→", past: "←" };
 
 function collectPoints(sources: ProjectSource[]): ChartPoint[] {
   const points: ChartPoint[] = [];
@@ -106,17 +108,18 @@ export function ProjectChart({ sources }: Props) {
           {/* x axis labels */}
           {tickTimes.map((t, i) => <text key={`xtick-${i}`} x={xForTime(t)} y={VIEWBOX_HEIGHT - margin.bottom + 20} textAnchor="middle" fontSize={11} fill="#6b7280">{formatAxisDate(t)}</text>)}
 
-          {/* index-region lanes: one horizontal line per active simple/compound-index item, showing the span it corrects */}
+          {/* index-region lanes: one horizontal line per active simple/compound-index item, showing the span it corrects and which end (future/past) points settle toward */}
           {regions.map((region, i) => {
                         const laneY = BASE_MARGIN.top - 8 + (i + 1) * REGION_LANE_HEIGHT - REGION_LANE_HEIGHT / 2;
                         const x1 = xForTime(region.start ?? new Date(minTime));
                         const x2 = xForTime(region.end);
+                        const settleLabel = region.direction === "future" ? "end (future value)" : "start (present value)";
                         return (
                                 <g key={`region-${region.sourceName}-${i}`}>
                                 <line x1={x1} x2={x2} y1={laneY} y2={laneY} stroke={region.color} strokeWidth={2} strokeDasharray="4 2">
-                                <title>{`${region.sourceName} · ${REGION_LABEL[region.kind]} index applies ${region.start ? "from" : "up to"} ${region.start ? region.start.toLocaleDateString() : region.end.toLocaleDateString()}`}</title>
+                                <title>{`${region.sourceName} · ${REGION_LABEL[region.kind]} index, ${region.start ? region.start.toLocaleDateString() : "…"} → ${region.end.toLocaleDateString()}. Settles to the window's ${settleLabel}.`}</title>
                                 </line>
-                                <text x={x1} y={laneY - 3} fontSize={9} fill={region.color}>{REGION_LABEL[region.kind]}</text>
+                                <text x={x1} y={laneY - 3} fontSize={9} fill={region.color}>{REGION_LABEL[region.kind]} {REGION_DIRECTION_ARROW[region.direction]}</text>
                                 </g>
                                 );
                       })}
