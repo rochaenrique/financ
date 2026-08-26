@@ -22,6 +22,15 @@ export function parseImportedDate(value: string): Date | null {
     return null;
   }
   
+  // A bare number (no separators, e.g. a row number like "51") is virtually
+  // never an intentional date. JS's loose `new Date(...)` fallback below
+  // would happily misread small integers as years ("51" -> 1951), which
+  // makes unrelated numeric columns (like a Nº column) get misdetected as a
+  // date column during import.
+  if (/^\d+$/.test(text)) {
+    return null;
+  }
+
   const date = new Date(text);
   return Number.isNaN(date.getTime()) ? null : date;
 }

@@ -6,6 +6,7 @@ import { Check, ChevronDown, ChevronRight, Upload } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { parsePdf, type PdfColumn, type PdfDocument } from "@/lib/pdf-import"
+import { getItemsFromDatasets } from "@/lib/pdf-datasets"
 
 export type PdfSelectedDataset = {
   page: number;
@@ -25,13 +26,15 @@ export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialo
   const [result, setResult] = useState<PdfDocument | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<Record<string, Set<string>>>({});
-  
+
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
     setLoading(true);
     setError(null);
+    setUploadError(null);
     setResult(null);
     setSelectedColumns({});
     try {
@@ -51,12 +54,14 @@ export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialo
     if (!nextOpen) {
       setResult(null);
       setError(null);
+      setUploadError(null);
       setLoading(false);
       setSelectedColumns({});
     }
   }
-  
+
   function toggleColumn(tableKey: string, columnName: string) {
+    setUploadError(null);
     setSelectedColumns((current) => {
                          const next = { ...current };
                          const columns = new Set(next[tableKey] ?? []);
@@ -70,7 +75,7 @@ export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialo
   
   function handleUpload() {
     if (!result) return;
-    
+
     const datasets: PdfSelectedDataset[] = [];
     result.pages.forEach((page) => {
                            page.tables.forEach((table, tableIndex) => {
@@ -82,6 +87,17 @@ export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialo
                                                  datasets.push({ page: page.page, tableIndex, title: table.title, columns, rows });
                                                });
                          });
+
+    // A selection can look reasonable but still fail to produce anything
+    // usable (e.g. no date column among what was picked, or a value column
+    // with a non-numeric cell) -- getItemsFromDataset already reports why via
+    // console.error, but the dialog used to just close silently either way,
+    // leaving the user with no sign that nothing was actually imported.
+    if (getItemsFromDatasets(datasets).length === 0) {
+      setUploadError("None of the selected columns produced usable data. Check that you selected one date column and at least one numeric value column per table, and that those columns aren't empty in the preview above.");
+      return;
+    }
+
     onUpload(datasets);
     onOpenChange(false);
   }
@@ -105,7 +121,8 @@ export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialo
           {error && <div className="shrink-0 rounded-md border border-destructive bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
           {result && <div className="min-h-0 min-w-0 flex-1"><PdfDocumentView result={result} selectedColumns={selectedColumns} onToggleColumn={toggleColumn} /></div>}
           </div>
-          <DialogFooter className="shrink-0 border-t pt-4">
+          <DialogFooter className="shrink-0 flex-col items-stretch gap-2 border-t pt-4 sm:flex-col sm:items-stretch">
+          {uploadError && <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">{uploadError}</div>}
           <div className="flex w-full items-center justify-between gap-4">
           <div className="text-xs text-muted-foreground">{selectedDatasetCount} dataset{selectedDatasetCount === 1 ? "" : "s"} selected · {selectedColumnCount} column{selectedColumnCount === 1 ? "" : "s"} selected</div>
           <Button onClick={handleUpload} disabled={!result || selectedColumnCount === 0 || loading}><Upload className="mr-2 h-4 w-4" />Upload</Button>
