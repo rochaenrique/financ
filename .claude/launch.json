@@ -11,6 +11,13 @@
     {
       "name": "financ-attach",
       "url": "http://localhost:3000"
+    },
+    {
+      "name": "financ-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
