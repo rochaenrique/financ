@@ -213,9 +213,52 @@ type PdfPageContent = {
   rulings: PdfRuling[];
 }
 
+// Safari added `Promise.withResolvers` only in 17.4 (March 2024); pdf.js 6.x
+// calls it ~30 times, including in its own worker-startup path, so on an
+// older Safari this throws "undefined is not a function" the instant a PDF
+// is opened. Cheap and safe to polyfill unconditionally.
+function ensurePromiseWithResolversPolyfill() {
+  if (typeof Promise.withResolvers === "function") {
+    return;
+  }
+
+  Promise.withResolvers = function withResolvers<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
+// pdf.js's real-worker path (`new Worker(url, { type: "module" })`) is a
+// separate JS realm with its own recurring Safari module-worker bugs beyond
+// just the Promise.withResolvers gap above -- and the polyfill above can't
+// reach into that realm anyway. Pre-loading the worker module on the main
+// thread and exposing it via `globalThis.pdfjsWorker` is pdf.js's own
+// documented signal (normally meant for a plain <script> tag) that a worker
+// build is already available, so it skips real-Worker creation entirely and
+// runs everything inline instead. Parsing a one-off, user-selected PDF in a
+// modal dialog is small enough that losing the background thread is not
+// noticeable, and it's a small price for sidestepping an entire class of
+// worker-specific browser bugs.
+let pdfWorkerReadyPromise: Promise<void> | null = null;
+
+function ensurePdfWorkerReady(): Promise<void> {
+  pdfWorkerReadyPromise ??= (async () => {
+    const workerModule = await import("pdfjs-dist/build/pdf.worker.min.mjs");
+    (globalThis as typeof globalThis & { pdfjsWorker?: unknown }).pdfjsWorker = workerModule;
+  })();
+  return pdfWorkerReadyPromise;
+}
+
 async function extractPdfText(buffer: ArrayBuffer): Promise<PdfPageContent[]> {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =  new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-  
+  ensurePromiseWithResolversPolyfill();
+  await ensurePdfWorkerReady();
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   const pages: PdfPageContent[] = [];
   
