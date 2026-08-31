@@ -128,3 +128,22 @@
     @apply font-sans;
   }
 }
+
+@layer utilities {
+  /* A thin scrollbar that's always drawn, rather than the OS's auto-hide-until-scrolling default (most noticeable on macOS) -- for scroll areas where the overflow itself is easy to miss. */
+  .scrollbar-visible {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .scrollbar-visible::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scrollbar-visible::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-visible::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+  }
+}

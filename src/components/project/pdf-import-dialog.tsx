@@ -1,12 +1,12 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Check, ChevronDown, ChevronRight, Upload } from "lucide-react"
+import { ChevronDown, ChevronRight, Upload } from "lucide-react"
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { parsePdf, type PdfColumn, type PdfDocument } from "@/lib/pdf-import"
-import { getItemsFromDatasets } from "@/lib/pdf-datasets"
+import { parsePdf, type PdfColumn, type PdfDocument, type PdfTable } from "@/lib/pdf-import"
+import { getItemsFromDataset, getItemsFromDatasets } from "@/lib/pdf-datasets"
 
 export type PdfSelectedDataset = {
   page: number;
@@ -110,7 +110,7 @@ export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialo
           <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden sm:max-w-5xl">
           <DialogHeader className="shrink-0">
           <DialogTitle>Import PDF</DialogTitle>
-          <DialogDescription>Select the columns you want to use from the imported tables.</DialogDescription>
+          <DialogDescription>Select the columns you want to use from the imported tables. Each table needs exactly one date column and at least one number column selected.</DialogDescription>
           </DialogHeader>
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
           <div className="shrink-0 rounded-lg border border-dashed p-6">
@@ -139,26 +139,50 @@ type PdfDocumentViewProps = {
   onToggleColumn: (tableKey: string, columnName: string) => void;
 };
 
+function isBlankColumn(table: PdfTable, columnName: string): boolean {
+  return table.rows.every((row) => !row.values[columnName]?.trim());
+}
+
+// Reuses the real import logic against just the currently-selected columns,
+// so this can never drift from what Upload will actually accept. Skipped
+// below 2 selected columns since a usable selection always needs at least
+// one date column plus one number column.
+function isSelectionUsable(table: PdfTable, selected: Set<string>): boolean {
+  if (selected.size < 2) return false;
+  const columns = table.columns.filter((column) => selected.has(column.name));
+  const rows = table.rows.map((row) => {
+    const values: Record<string, string> = {};
+    for (const name of selected) values[name] = row.values[name] ?? "";
+    return values;
+  });
+  return getItemsFromDataset({ page: 0, tableIndex: 0, columns, rows }).length > 0;
+}
+
 function PdfDocumentView({ result, selectedColumns, onToggleColumn }: PdfDocumentViewProps) {
   const [expanded, setExpanded] = useState(true);
   const [expandedTables, setExpandedTables] = useState<Record<string, boolean>>({});
+  const [showBlankColumns, setShowBlankColumns] = useState(false);
   const tableCount = result.pages.reduce((count, page) => count + page.tables.length, 0);
-  
+
   function toggleTable(key: string) {
     setExpandedTables((current) => ({ ...current, [key]: !(current[key] ?? true) }));
   }
-  
+
   return (
           <div className="flex max-h-[80vh] min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-lg border">
-          <button type="button" onClick={() => setExpanded((current) => !current)} className="shrink-0 border-b bg-background px-4 py-3 text-left hover:bg-muted/30">
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b bg-background px-4 py-3">
+          <button type="button" onClick={() => setExpanded((current) => !current)} className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80">
           {expanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
           <div>
           <div className="text-sm font-semibold">Parse result</div>
           <div className="text-xs text-muted-foreground">{result.pages.length} pages · {tableCount} tables</div>
           </div>
-          </div>
           </button>
+          <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+          <input type="checkbox" checked={showBlankColumns} onChange={(e) => setShowBlankColumns(e.target.checked)} className="h-3.5 w-3.5 cursor-pointer accent-primary" />
+          Show blank columns
+          </label>
+          </div>
           {expanded && (
                         <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
                         {result.pages.map((page) => (
@@ -171,29 +195,34 @@ function PdfDocumentView({ result, selectedColumns, onToggleColumn }: PdfDocumen
                                                                         const isExpanded = expandedTables[key] ?? true;
                                                                         const selected = selectedColumns[key] ?? new Set<string>();
                                                                         const summary = table.title || table.columns.map((column) => column.name).join(", ");
+                                                                        const visibleColumns = showBlankColumns ? table.columns : table.columns.filter((column) => !isBlankColumn(table, column.name));
+                                                                        const hiddenBlankCount = table.columns.length - visibleColumns.length;
+                                                                        const isUsable = isSelectionUsable(table, selected);
                                                                         return (
                                                                                 <div key={key} className="min-w-0 overflow-hidden rounded-md border">
                                                                                 <button type="button" onClick={() => toggleTable(key)} className="flex w-full items-center gap-2 bg-background px-3 py-2 text-left text-sm hover:bg-muted/30">
                                                                                 {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                                                                                 <span className="min-w-0 flex-1 truncate font-medium">{summary}</span>
-                                                                                {selected.size > 0 && <span className="shrink-0 text-xs text-muted-foreground">{selected.size} column{selected.size === 1 ? "" : "s"} selected</span>}
+                                                                                {hiddenBlankCount > 0 && <span className="shrink-0 text-xs text-muted-foreground">{hiddenBlankCount} blank hidden</span>}
+                                                                                {selected.size > 0 && (
+                                                                                                       <span className={`shrink-0 text-xs font-medium ${isUsable ? "text-emerald-600" : "text-amber-600"}`}>
+                                                                                                       {isUsable ? "✓ ready" : `${selected.size} selected · needs 1 date + 1 number`}
+                                                                                                       </span>
+                                                                                                       )}
                                                                                 </button>
                                                                                 {isExpanded && (
-                                                                                                <div className="min-w-0 overflow-x-auto border-t">
+                                                                                                <div className="scrollbar-visible min-w-0 overflow-x-auto border-t">
                                                                                                 <table className="w-full min-w-max border-collapse text-sm">
                                                                                                 <thead>
                                                                                                 <tr className="border-b bg-muted/50">
-                                                                                                {table.columns.map((column) => {
+                                                                                                {visibleColumns.map((column) => {
                                                                                                                      const isSelected = selected.has(column.name);
                                                                                                                      return (
                                                                                                                              <th key={column.name} className={`max-w-xs whitespace-nowrap px-3 py-2 text-left font-medium ${isSelected ? "bg-primary/10" : ""}`}>
-                                                                                                                             <div className="flex items-center gap-2">
-                                                                                                                             <Button type="button" variant={isSelected ? "default" : "outline"} size="sm" onClick={() => onToggleColumn(key, column.name)} className="h-7 shrink-0 px-2 text-xs">
-                                                                                                                             {isSelected && <Check className="mr-1 h-3 w-3" />}
-                                                                                                                             {isSelected ? "Selected" : "Select"}
-                                                                                                                             </Button>
+                                                                                                                             <label className="flex cursor-pointer items-center gap-1.5">
+                                                                                                                             <input type="checkbox" checked={isSelected} onChange={() => onToggleColumn(key, column.name)} className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-primary" />
                                                                                                                              <span>{column.name}</span>
-                                                                                                                             </div>
+                                                                                                                             </label>
                                                                                                                              </th>
                                                                                                                              );
                                                                                                                    })}
@@ -202,7 +231,7 @@ function PdfDocumentView({ result, selectedColumns, onToggleColumn }: PdfDocumen
                                                                                                 <tbody>
                                                                                                 {table.rows.map((row, rowIndex) => (
                                                                                                                                     <tr key={rowIndex} className="border-b last:border-0">
-                                                                                                                                    {table.columns.map((column) => (
+                                                                                                                                    {visibleColumns.map((column) => (
                                                                                                                                                                     <td key={column.name} className={`max-w-xs break-words px-3 py-2 align-top ${selected.has(column.name) ? "bg-primary/5" : ""}`}>{row.values[column.name]}</td>
                                                                                                                                                                     ))}
                                                                                                                                     </tr>
