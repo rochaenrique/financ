@@ -74,12 +74,10 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onT
                             {item.isDisabled ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             <span className="sr-only">{item.isDisabled ? "Enable item" : "Disable item"}</span>
                             </Button>
-                            {item.data.type !== "timed-values" && (
-                                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setItemToEdit(item)}>
-                                                                    <Pencil className="h-4 w-4" />
-                                                                    <span className="sr-only">Edit item</span>
-                                                                    </Button>
-                                                                    )}
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setItemToEdit(item)}>
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Edit item</span>
+                            </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setItemToDelete(item)}>
                             <Trash2 className="h-4 w-4" />
                             <span className="sr-only">Delete item</span>

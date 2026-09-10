@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText, Plus, Table2, Trash2 } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { DateRef, FrequencyUnit, IndexDirection, ProjectItem, ProjectItemData, ProjectItemFrequency, ProjectItemSchedule, ProjectSource } from "@/lib/projects";
 import { getSourceDateRange, isSourceDateRef } from "@/lib/projects";
 import { getItemsFromDatasets } from "@/lib/pdf-datasets";
-import { toDate } from "@/lib/utils";
+import { cn, toDate } from "@/lib/utils";
 import type { PdfSelectedDataset } from "@/components/project/pdf-import-dialog";
 import { ItemIcon } from "@/components/project/item-icon";
 
@@ -30,10 +30,10 @@ type Props = {
 type ManualItemType = Exclude<ProjectItemData["type"], "timed-values" | "index-series">;
 type ScheduleKind = ProjectItemSchedule["kind"];
 type PdfResultType = "timed-values" | "index-series";
-type Step = { kind: "picker" } | { kind: "manual"; itemType: ManualItemType } | { kind: "index-series-direction" } | { kind: "pdf"; resultType: PdfResultType };
+type Step = { kind: "picker" } | { kind: "manual"; itemType: ManualItemType } | { kind: "index-series-direction" } | { kind: "pdf"; resultType: PdfResultType } | { kind: "timed-values-method" } | { kind: "table"; resultType: PdfResultType };
 
 const TYPE_OPTIONS: { type: ProjectItemData["type"]; label: string; description: string }[] = [
-                                                                                               { type: "timed-values", label: "Time Series", description: "Import a dated series of values from a PDF, like a payment schedule." },
+                                                                                               { type: "timed-values", label: "Time Series", description: "Import from a PDF or enter values by hand, like a payment schedule." },
                                                                                                { type: "index-series", label: "Index Series", description: "Import a researched index (e.g. inflation) from a PDF, to correct other items in this source." },
                                                                                                { type: "compound-index", label: "Compound Index", description: "A single rate that compounds over a repeating schedule." },
                                                                                                { type: "simple-index", label: "Simple Index", description: "A single non-compounding rate or percentage applied on a schedule." },
@@ -66,6 +66,38 @@ function dateRefMode(ref: DateRef): DateMode {
   return isSourceDateRef(ref) ? "source" : "custom";
 }
 
+// One row of the manual table editor. Values are kept as the raw input
+// strings (like every other field in this form) and only parsed at submit
+// time -- a row with either side left blank is simply not usable yet
+// rather than being an error to report.
+type TableRow = { id: string; date: string; value: string };
+
+function emptyTableRow(seedDate?: string): TableRow {
+  return { id: crypto.randomUUID(), date: seedDate ?? todayInputValue(), value: "" };
+}
+
+// Adds one calendar month to a yyyy-mm-dd date-input string, clamping the
+// day to the target month's last valid day instead of overflowing into the
+// month after (e.g. Jan 31 -> Feb 28, not Mar 3). Built entirely from UTC
+// components: a date-only string parses as UTC midnight, and mixing that
+// with local-time getters/setters would silently shift the date for any
+// timezone that isn't UTC itself.
+function addOneMonthClamped(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (!year || !month || !day) return todayInputValue();
+  const daysInNextMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const next = new Date(Date.UTC(year, month, Math.min(day, daysInNextMonth)));
+  return next.toISOString().slice(0, 10);
+}
+
+function parseTableRow(row: TableRow): { time: Date; value: number } | null {
+  if (row.date.trim() === "" || row.value.trim() === "") return null;
+  const time = new Date(row.date);
+  const value = Number(row.value);
+  if (Number.isNaN(time.getTime()) || !Number.isFinite(value)) return null;
+  return { time, value };
+}
+
 type FormState = {
   step: Step;
   value: string;
@@ -80,6 +112,8 @@ type FormState = {
   rangeStartMode: DateMode;
   rangeEnd: string;
   rangeEndMode: DateMode;
+  tableRows: TableRow[];
+  autoIncrementMonth: boolean;
 };
 
 const BLANK_FORM_STATE: FormState = {
@@ -96,16 +130,21 @@ const BLANK_FORM_STATE: FormState = {
   rangeStartMode: "custom",
   rangeEnd: todayInputValue(),
   rangeEndMode: "custom",
+  tableRows: [],
+  autoIncrementMonth: false,
 };
 
 // The dialog opens with either a blank "add" form or, when editing, the
-// existing item's values pre-filled into the same manual form (index-series
-// only has a direction to edit -- its dates/values aren't editable here).
+// existing item's values pre-filled into the same manual form. timed-values
+// and index-series share the same (times, values) shape, so both editing
+// paths build the same row list for the table editor.
 function initialFormState(editingItem: ProjectItem | null | undefined): FormState {
-  if (!editingItem || editingItem.data.type === "timed-values") return BLANK_FORM_STATE;
+  if (!editingItem) return BLANK_FORM_STATE;
 
-  if (editingItem.data.type === "index-series") {
-    return { ...BLANK_FORM_STATE, step: { kind: "index-series-direction" }, direction: editingItem.data.direction ?? "future" };
+  if (editingItem.data.type === "timed-values" || editingItem.data.type === "index-series") {
+    const { data } = editingItem;
+    const tableRows: TableRow[] = data.times.map((time, i) => ({ id: crypto.randomUUID(), date: dateInputValue(time), value: String(data.values[i] ?? "") }));
+    return { ...BLANK_FORM_STATE, step: { kind: "table", resultType: data.type }, tableRows, direction: data.type === "index-series" ? (data.direction ?? "future") : BLANK_FORM_STATE.direction };
   }
 
   const { data } = editingItem;
@@ -164,6 +203,8 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
   const [rangeStartMode, setRangeStartMode] = useState<DateMode>(initial.rangeStartMode);
   const [rangeEnd, setRangeEnd] = useState(initial.rangeEnd);
   const [rangeEndMode, setRangeEndMode] = useState<DateMode>(initial.rangeEndMode);
+  const [tableRows, setTableRows] = useState<TableRow[]>(initial.tableRows);
+  const [autoIncrementMonth, setAutoIncrementMonth] = useState(initial.autoIncrementMonth);
 
   const sourceRange = source ? getSourceDateRange(source, editingItem?.id) : { start: null, end: null };
 
@@ -181,35 +222,54 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
     setRangeStartMode(BLANK_FORM_STATE.rangeStartMode);
     setRangeEnd(todayInputValue());
     setRangeEndMode(BLANK_FORM_STATE.rangeEndMode);
+    setTableRows(BLANK_FORM_STATE.tableRows);
+    setAutoIncrementMonth(BLANK_FORM_STATE.autoIncrementMonth);
   }
-  
+
   function handleOpenChange(nextOpen: boolean) {
     onOpenChange(nextOpen);
     if (!nextOpen) reset();
   }
-  
+
   function handlePickType(type: ProjectItemData["type"]) {
-    if (type === "timed-values") { setStep({ kind: "pdf", resultType: "timed-values" }); return; }
+    if (type === "timed-values") { setStep({ kind: "timed-values-method" }); return; }
     if (type === "index-series") { setStep({ kind: "index-series-direction" }); return; }
     setStep({ kind: "manual", itemType: type });
   }
 
-  // Index-series has nothing to configure but which end it settles toward --
-  // editing just updates that in place; adding continues into the same PDF
-  // import flow timed-values uses, tagging the result as "index-series".
+  function handleStartManualTable() {
+    setTableRows([emptyTableRow()]);
+    setAutoIncrementMonth(true);
+    setStep({ kind: "table", resultType: "timed-values" });
+  }
+
+  // Index-series has nothing to configure before importing but which end it
+  // settles toward; editing goes straight to the table step instead (see
+  // initialFormState), so this step is only ever reached while adding.
   function handleIndexSeriesDirectionContinue() {
-    if (editingItem && editingItem.data.type === "index-series") {
-      onEditItem?.({ ...editingItem, data: { ...editingItem.data, direction } });
-      handleOpenChange(false);
-      return;
-    }
     setStep({ kind: "pdf", resultType: "index-series" });
   }
-  
+
+  function addTableRow() {
+    setTableRows((rows) => {
+      const last = rows[rows.length - 1];
+      const seedDate = autoIncrementMonth && last ? addOneMonthClamped(last.date) : todayInputValue();
+      return [...rows, emptyTableRow(seedDate)];
+    });
+  }
+
+  function removeTableRow(id: string) {
+    setTableRows((rows) => rows.filter((row) => row.id !== id));
+  }
+
+  function updateTableRow(id: string, patch: Partial<Pick<TableRow, "date" | "value">>) {
+    setTableRows((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  }
+
   function buildFrequency(): ProjectItemFrequency {
     return { every: Number(frequencyEvery), unit: frequencyUnit };
   }
-  
+
   function buildSchedule(): ProjectItemSchedule {
     const frequency = buildFrequency();
     if (scheduleKind === "count") return { kind: "count", frequency, referenceDate: referenceDateMode === "source" ? { kind: "source-start" } : new Date(referenceDate), occurrences: Number(occurrences) };
@@ -220,6 +280,7 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
   const resolvedReferenceDate = referenceDateMode === "source" ? sourceRange.start : (referenceDate ? new Date(referenceDate) : null);
   const resolvedRangeStart = rangeStartMode === "source" ? sourceRange.start : (rangeStart ? new Date(rangeStart) : null);
   const resolvedRangeEnd = rangeEndMode === "source" ? sourceRange.end : (rangeEnd ? new Date(rangeEnd) : null);
+  const parsedTableRows = tableRows.map(parseTableRow).filter((row): row is { time: Date; value: number } => row !== null);
 
   function handleManualSubmit() {
     if (step.kind !== "manual") return;
@@ -246,6 +307,23 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
     handleOpenChange(false);
   }
 
+  function handleTableSubmit() {
+    if (step.kind !== "table" || parsedTableRows.length === 0) return;
+
+    const sorted = [...parsedTableRows].sort((a, b) => a.time.getTime() - b.time.getTime());
+    const times = sorted.map((row) => row.time);
+    const values = sorted.map((row) => row.value);
+    const data: ProjectItemData = step.resultType === "index-series" ? { type: "index-series", times, values, direction } : { type: "timed-values", times, values };
+    const item: ProjectItem = { id: editingItem?.id ?? crypto.randomUUID(), data };
+
+    if (editingItem) {
+      onEditItem?.(item);
+    } else {
+      onAddItems([item]);
+    }
+    handleOpenChange(false);
+  }
+
   function handlePdfUpload(datasets: PdfSelectedDataset[]) {
     const items = getItemsFromDatasets(datasets);
     const resultType = step.kind === "pdf" ? step.resultType : "timed-values";
@@ -257,17 +335,17 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
 
   const isManualValid = step.kind === "manual" && value.trim() !== "" && Number.isFinite(Number(value)) && Number.isInteger(Number(frequencyEvery)) && Number(frequencyEvery) > 0 && ((scheduleKind === "count" && resolvedReferenceDate !== null && Number.isInteger(Number(occurrences)) && Number(occurrences) > 0) || (scheduleKind === "range" && resolvedRangeStart !== null && resolvedRangeEnd !== null && resolvedRangeStart <= resolvedRangeEnd) || (scheduleKind === "entire" && referenceDate !== ""));
   const frequencyDescription = frequencyUnit === "days" ? "Anchored by the reference date." : frequencyUnit === "weeks" ? "Anchored by the weekday of the reference date." : frequencyUnit === "months" ? "Anchored by the day of the month of the reference date." : "Anchored by the month and day of the reference date.";
-  
+
   return (
           <>
           <Dialog open={open && step.kind !== "pdf"} onOpenChange={handleOpenChange}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className={cn("sm:max-w-lg", step.kind === "table" && "flex max-h-[85vh] w-full flex-col overflow-hidden")}>
           {step.kind === "picker" && (
                                       <>
                                       <DialogHeader><DialogTitle>Add item</DialogTitle><DialogDescription>Choose what kind of data you want to add to this source.</DialogDescription></DialogHeader>
                                       <div className="grid grid-cols-2 gap-3 pt-2">
                                       {TYPE_OPTIONS.map((option) => <button key={option.type} type="button" onClick={() => handlePickType(option.type)} className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left hover:border-primary hover:bg-muted/30"><ItemIcon type={option.type} /><span className="text-sm font-semibold">{option.label}</span><span className="text-xs text-muted-foreground">{option.description}</span></button>)}
-                                      
+
                                       {allowEmpty && (
                                                       <button type="button" onClick={() => { onAddItems([]); handleOpenChange(false); }} className="col-span-2 rounded-lg border border-dashed p-4 text-left hover:border-primary hover:bg-muted/30">
                                                       <span className="text-sm font-semibold">Empty source</span>
@@ -277,7 +355,76 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
                                       </div>
                                       </>
                                       )}
-          
+
+          {step.kind === "timed-values-method" && (
+                                                     <>
+                                                     <DialogHeader><DialogTitle>Add Time Series</DialogTitle><DialogDescription>How do you want to enter the data?</DialogDescription></DialogHeader>
+                                                     <div className="grid grid-cols-2 gap-3 pt-2">
+                                                     <button type="button" onClick={() => setStep({ kind: "pdf", resultType: "timed-values" })} className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left hover:border-primary hover:bg-muted/30">
+                                                     <FileText className="h-4 w-4" />
+                                                     <span className="text-sm font-semibold">Import from PDF</span>
+                                                     <span className="text-xs text-muted-foreground">Pick columns from a parsed PDF table.</span>
+                                                     </button>
+                                                     <button type="button" onClick={handleStartManualTable} className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left hover:border-primary hover:bg-muted/30">
+                                                     <Table2 className="h-4 w-4" />
+                                                     <span className="text-sm font-semibold">Enter manually</span>
+                                                     <span className="text-xs text-muted-foreground">Type in each date and value by hand.</span>
+                                                     </button>
+                                                     </div>
+                                                     <DialogFooter className="pt-2"><Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button></DialogFooter>
+                                                     </>
+                                                     )}
+
+          {step.kind === "table" && (
+                                      <>
+                                      <DialogHeader className="shrink-0">
+                                      <DialogTitle>{editingItem ? "Edit" : "Add"} {step.resultType === "index-series" ? "Index Series" : "Time Series"}</DialogTitle>
+                                      <DialogDescription>Enter each date and value by hand. A row needs both to count.</DialogDescription>
+                                      </DialogHeader>
+                                      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pt-2">
+                                      {step.resultType === "index-series" && (
+                                                                             <div className="flex shrink-0 flex-col gap-2">
+                                                                             <label className="text-sm font-medium">Settle to</label>
+                                                                             <select value={direction} onChange={(e) => setDirection(e.target.value as IndexDirection)} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+                                                                             <option value="future">Latest reading (future value)</option>
+                                                                             <option value="past">Earliest reading (present value)</option>
+                                                                             </select>
+                                                                             </div>
+                                                                             )}
+                                      <div className="flex shrink-0 gap-2 px-0.5 text-xs font-medium text-muted-foreground">
+                                      <span className="flex-1">Date</span>
+                                      <span className="flex-1">Value</span>
+                                      <span className="w-8 shrink-0" />
+                                      </div>
+                                      <div className="scrollbar-visible flex min-h-[180px] flex-1 flex-col gap-2 overflow-y-auto pr-1">
+                                      {tableRows.map((row) => (
+                                                                 <div key={row.id} className="flex items-center gap-2">
+                                                                 <input type="date" value={row.date} onChange={(e) => updateTableRow(row.id, { date: e.target.value })} className="w-full flex-1 rounded-md border bg-background px-3 py-2 text-sm" />
+                                                                 <input type="number" step="any" value={row.value} onChange={(e) => updateTableRow(row.id, { value: e.target.value })} placeholder="0.00" className="w-full flex-1 rounded-md border bg-background px-3 py-2 text-sm" />
+                                                                 <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => removeTableRow(row.id)}>
+                                                                 <Trash2 className="h-4 w-4" />
+                                                                 <span className="sr-only">Remove row</span>
+                                                                 </Button>
+                                                                 </div>
+                                                                 ))}
+                                      {tableRows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No rows yet.</p>}
+                                      </div>
+                                      <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                                      <input type="checkbox" checked={autoIncrementMonth} onChange={(e) => setAutoIncrementMonth(e.target.checked)} className="h-3.5 w-3.5 cursor-pointer accent-primary" />
+                                      Advance new rows by 1 month
+                                      </label>
+                                      <Button type="button" variant="outline" onClick={addTableRow} className="shrink-0">
+                                      <Plus className="mr-2 h-4 w-4" />Add row
+                                      </Button>
+                                      <p className="shrink-0 text-xs text-muted-foreground">{parsedTableRows.length} of {tableRows.length} row{tableRows.length === 1 ? "" : "s"} usable.</p>
+                                      </div>
+                                      <DialogFooter className="shrink-0 pt-2">
+                                      {editingItem ? <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>Cancel</Button> : <Button type="button" variant="ghost" onClick={() => setStep({ kind: "timed-values-method" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>}
+                                      <Button type="button" onClick={handleTableSubmit} disabled={parsedTableRows.length === 0}>{editingItem ? "Save changes" : "Add item"}</Button>
+                                      </DialogFooter>
+                                      </>
+                                      )}
+
           {step.kind === "manual" && (
                                       <>
                                       <DialogHeader><DialogTitle>{editingItem ? "Edit" : "Add"} {MANUAL_TYPE_LABELS[step.itemType]}</DialogTitle><DialogDescription>Choose the value, frequency, and when the schedule applies.</DialogDescription></DialogHeader>
@@ -310,7 +457,7 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
                                       </div>
                                       <p className="mt-2 text-xs text-muted-foreground">Every {Number(frequencyEvery) > 0 ? frequencyEvery : "X"} {FREQUENCY_LABELS[frequencyUnit]}. {frequencyDescription}</p>
                                       </div>
-                                      
+
                                       <div className="flex flex-col gap-2">
                                       <label className="text-sm font-medium">Apply</label>
                                       <select value={scheduleKind} onChange={(e) => setScheduleKind(e.target.value as ScheduleKind)} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
@@ -319,7 +466,7 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
                                       <option value="entire">On this interval for the entire time</option>
                                       </select>
                                       </div>
-                                      
+
                                       {scheduleKind === "count" && (
                                                                     <div className="grid grid-cols-2 gap-3">
                                                                     <DateRefField label="Starting date" mode={referenceDateMode} onModeChange={setReferenceDateMode} value={referenceDate} onValueChange={setReferenceDate} sourceDate={sourceRange.start} sourceLabel="Start of source data" />
@@ -333,7 +480,7 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
                                                                     <DateRefField label="Range end" mode={rangeEndMode} onModeChange={setRangeEndMode} value={rangeEnd} onValueChange={setRangeEnd} sourceDate={sourceRange.end} sourceLabel="End of source data" />
                                                                     </div>
                                                                     )}
-                                      
+
                                       {scheduleKind === "entire" && <div className="flex flex-col gap-1.5"><label className="text-sm font-medium">Reference date</label><input type="date" value={referenceDate} onChange={(e) => setReferenceDate(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /><p className="text-xs text-muted-foreground">The relevant day is taken from this date: weekday for weeks, day-of-month for months, or month/day for years.</p></div>}
                                       </div>
                                       <DialogFooter className="pt-2">{editingItem ? <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>Cancel</Button> : <Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>}<Button type="button" onClick={handleManualSubmit} disabled={!isManualValid}>{editingItem ? "Save changes" : "Add item"}</Button></DialogFooter>
@@ -342,7 +489,7 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
 
           {step.kind === "index-series-direction" && (
                                                         <>
-                                                        <DialogHeader><DialogTitle>{editingItem ? "Edit" : "Add"} Index Series</DialogTitle><DialogDescription>Choose which end of the imported data raw values settle toward.{!editingItem && " You'll pick the PDF table next."}</DialogDescription></DialogHeader>
+                                                        <DialogHeader><DialogTitle>Add Index Series</DialogTitle><DialogDescription>Choose which end of the imported data raw values settle toward. You&apos;ll pick the PDF table next.</DialogDescription></DialogHeader>
                                                         <div className="flex flex-col gap-2 pt-2">
                                                         <label className="text-sm font-medium">Settle to</label>
                                                         <select value={direction} onChange={(e) => setDirection(e.target.value as IndexDirection)} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
@@ -351,7 +498,7 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
                                                         </select>
                                                         <p className="text-xs text-muted-foreground">{direction === "future" ? "Raw values grow forward to the index's most recent reading — what they're worth today." : "Raw values discount back to the index's earliest reading — what they were worth on day one."}</p>
                                                         </div>
-                                                        <DialogFooter className="pt-2">{editingItem ? <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>Cancel</Button> : <Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>}<Button type="button" onClick={handleIndexSeriesDirectionContinue}>{editingItem ? "Save changes" : "Continue"}</Button></DialogFooter>
+                                                        <DialogFooter className="pt-2"><Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button><Button type="button" onClick={handleIndexSeriesDirectionContinue}>Continue</Button></DialogFooter>
                                                         </>
                                                         )}
           </DialogContent>
