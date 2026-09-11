@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { ArrowLeft, FileText, Plus, Table2, Trash2 } from "lucide-react";
 
@@ -205,8 +205,23 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
   const [rangeEndMode, setRangeEndMode] = useState<DateMode>(initial.rangeEndMode);
   const [tableRows, setTableRows] = useState<TableRow[]>(initial.tableRows);
   const [autoIncrementMonth, setAutoIncrementMonth] = useState(initial.autoIncrementMonth);
+  const valueInputRefs = useRef(new Map<string, HTMLInputElement>());
+  const pendingFocusRowId = useRef<string | null>(null);
 
   const sourceRange = source ? getSourceDateRange(source, editingItem?.id) : { start: null, end: null };
+
+  // Enter in a row's value field adds the next row the same way the "Add
+  // row" button does (see addTableRow), then moves focus straight into
+  // that new row's value field so typing a whole schedule by hand never
+  // needs the mouse: value, Enter, value, Enter, ... Focusing has to wait
+  // until the new row's input actually exists in the DOM, hence the effect
+  // rather than doing it inline where the row is created.
+  useEffect(() => {
+    const id = pendingFocusRowId.current;
+    if (!id) return;
+    pendingFocusRowId.current = null;
+    valueInputRefs.current.get(id)?.focus();
+  }, [tableRows]);
 
   function reset() {
     setStep(BLANK_FORM_STATE.step);
@@ -254,7 +269,9 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
     setTableRows((rows) => {
       const last = rows[rows.length - 1];
       const seedDate = autoIncrementMonth && last ? addOneMonthClamped(last.date) : todayInputValue();
-      return [...rows, emptyTableRow(seedDate)];
+      const newRow = emptyTableRow(seedDate);
+      pendingFocusRowId.current = newRow.id;
+      return [...rows, newRow];
     });
   }
 
@@ -400,7 +417,16 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
                                       {tableRows.map((row) => (
                                                                  <div key={row.id} className="flex items-center gap-2">
                                                                  <input type="date" value={row.date} onChange={(e) => updateTableRow(row.id, { date: e.target.value })} className="w-full flex-1 rounded-md border bg-background px-3 py-2 text-sm" />
-                                                                 <input type="number" step="any" value={row.value} onChange={(e) => updateTableRow(row.id, { value: e.target.value })} placeholder="0.00" className="w-full flex-1 rounded-md border bg-background px-3 py-2 text-sm" />
+                                                                 <input
+                                                                 ref={(el) => { if (el) valueInputRefs.current.set(row.id, el); else valueInputRefs.current.delete(row.id); }}
+                                                                 type="number"
+                                                                 step="any"
+                                                                 value={row.value}
+                                                                 onChange={(e) => updateTableRow(row.id, { value: e.target.value })}
+                                                                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTableRow(); } }}
+                                                                 placeholder="0.00"
+                                                                 className="w-full flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+                                                                 />
                                                                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => removeTableRow(row.id)}>
                                                                  <Trash2 className="h-4 w-4" />
                                                                  <span className="sr-only">Remove row</span>
