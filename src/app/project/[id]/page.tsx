@@ -3,7 +3,7 @@
 import React from 'react';
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -11,6 +11,7 @@ import {
   saveProject,
   duplicateSource,
   randomSourceColor,
+  createProjectExport,
   type Project,
   type ProjectItem,
   type ProjectSource,
@@ -22,6 +23,10 @@ import { getSourcedFromDatasets } from "@/lib/pdf-datasets"
 import dynamic from "next/dynamic"
 
 import { type PdfSelectedDataset } from "@/components/project/pdf-import-dialog"
+
+function sanitizeFilename(name: string): string {
+  return name.trim().replace(/[^a-z0-9 _-]/gi, "_") || "project";
+}
 
 export default function ProjectPage() {
   
@@ -185,6 +190,19 @@ export default function ProjectPage() {
     setProject(updatedProject);
   };
 
+  const handleExport = () => {
+    if (!project) return;
+
+    const payload = createProjectExport(project);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${sanitizeFilename(project.name)}-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleDuplicateSource = (sourceId: string) => {
     if (!project) return;
 
@@ -211,6 +229,10 @@ export default function ProjectPage() {
           </Button>
           <div className="mx-3 h-5 w-px bg-border" />
           <span className="text-sm font-medium">{project.name}</span>
+          <div className="flex-1" />
+          <Button variant="ghost" size="sm" onClick={handleExport}>
+          <Download className="mr-2 h-4 w-4" />Export
+          </Button>
           </div>
           
           <ProjectEditor project={project} onAddSource={handleAddSource} onAddItem={handleAddItems} onEditItem={handleEditItem} onDeleteItem={handleDeleteItem} onToggleItemDisabled={handleToggleItemDisabled} onDuplicateSource={handleDuplicateSource} onDeleteSource={handleDeleteSource}/>

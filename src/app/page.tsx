@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Search, Folder, Pencil, Trash2, Plus } from "lucide-react";
+import { Search, Folder, Pencil, Trash2, Plus, Upload } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-import { createProject, deleteProject, getProjectIndex, renameProject, type Project } from "@/lib/projects";
+import { createProject, deleteProject, getProject, getProjectIndex, parseProjectExport, renameProject, saveProject, type Project } from "@/lib/projects";
+
+type ImportState = { kind: "collision"; incoming: Project; existing: Project } | { kind: "error"; message: string };
 
 
 export default function Home() {
@@ -20,7 +22,9 @@ export default function Home() {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [projectToRename, setProjectToRename] = useState<Project | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  
+  const [importState, setImportState] = useState<ImportState | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
               setProjects(getProjectIndex());
             }, []);
@@ -64,7 +68,35 @@ export default function Home() {
     setProjectToRename(null);
     setRenameValue("");
   }
-  
+
+  function finishImport(project: Project) {
+    saveProject(project);
+    setProjects(getProjectIndex());
+    setImportState(null);
+  }
+
+  async function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      const imported = parseProjectExport(await file.text());
+      if (!imported) {
+        setImportState({ kind: "error", message: "That file doesn't look like a project export." });
+        return;
+      }
+      const existing = getProject(imported.id);
+      if (existing) {
+        setImportState({ kind: "collision", incoming: imported, existing });
+        return;
+      }
+      finishImport(imported);
+    } catch {
+      setImportState({ kind: "error", message: "Couldn't read that file." });
+    }
+  }
+
   return (
           <main className="min-h-screen bg-background">
           <div className="mx-auto w-full max-w-5xl px-6 py-10">
@@ -74,10 +106,17 @@ export default function Home() {
           <p className="mt-1 text-sm text-muted-foreground">Select a project to continue working.</p>
           </div>
           
+          <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => importInputRef.current?.click()}>
+          <Upload className="mr-2 h-4 w-4" />
+          Import
+          </Button>
+          <input ref={importInputRef} type="file" accept="application/json,.json" onChange={handleImportFile} className="sr-only" />
           <Button onClick={handleCreateProject}>
           <Plus className="mr-2 h-4 w-4" />
           New Project
           </Button>
+          </div>
           </div>
           
           <div className="mb-4">
@@ -188,6 +227,28 @@ export default function Home() {
           </DialogFooter>
           </DialogContent>
           </Dialog>
+
+          <AlertDialog open={importState !== null} onOpenChange={(open) => !open && setImportState(null)}>
+          <AlertDialogContent>
+          <AlertDialogHeader>
+          <AlertDialogTitle>{importState?.kind === "collision" ? "Project already exists" : "Import failed"}</AlertDialogTitle>
+          <AlertDialogDescription>
+          {importState?.kind === "collision"
+            ? <>A project named <span className="font-medium">{importState.existing.name}</span> already exists locally. Overwrite it with the imported project (<span className="font-medium">{importState.incoming.name}</span>)? This can&apos;t be undone.</>
+            : importState?.message}
+          </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+          <AlertDialogCancel>{importState?.kind === "collision" ? "Cancel" : "OK"}</AlertDialogCancel>
+          {importState?.kind === "collision" && (
+                                                  <AlertDialogAction onClick={() => finishImport(importState.incoming)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                                  Overwrite
+                                                  </AlertDialogAction>
+                                                  )}
+          </AlertDialogFooter>
+          </AlertDialogContent>
+          </AlertDialog>
           </main>
           );
 }

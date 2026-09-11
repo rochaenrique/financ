@@ -362,3 +362,37 @@ export function renameProject(id: string, name: string): Project | null {
   saveProject(renamed);
   return renamed;
 }
+
+// A project is fully self-contained (nothing it references lives outside
+// its own sources/items), so this envelope's `project` field is the entire
+// unit of transfer -- copying it into another machine's localStorage via
+// saveProject reproduces the original exactly, "modified" timestamp
+// included. The version number isn't used for anything yet; it's here so
+// a future format change has something to branch on instead of guessing.
+const PROJECT_EXPORT_VERSION = 1;
+
+export type ProjectExport = {
+  version: number;
+  exportedAt: string;
+  project: Project;
+};
+
+export function createProjectExport(project: Project): ProjectExport {
+  return { version: PROJECT_EXPORT_VERSION, exportedAt: new Date().toISOString(), project };
+}
+
+// Deliberately light-touch: just enough to avoid writing garbage into
+// localStorage (a missing id would corrupt the project index) or crashing
+// on a non-JSON file, not a full schema validator.
+export function parseProjectExport(json: string): Project | null {
+  try {
+    const parsed = JSON.parse(json);
+    const project = parsed?.project;
+    if (project && typeof project.id === "string" && typeof project.name === "string" && Array.isArray(project.sources)) {
+      return project as Project;
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
