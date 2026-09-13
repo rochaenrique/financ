@@ -169,10 +169,11 @@ function formatFrequency(frequency: ProjectItemFrequency): string {
 }
 
 function formatReference(frequency: ProjectItemFrequency, date: Date): string {
-  if (frequency.unit === "days") return `from ${formatDate(date)}`;
-  if (frequency.unit === "weeks") return `on ${date.toLocaleDateString(undefined, { weekday: "short" })}`;
-  if (frequency.unit === "months") return `on day ${toDate(date).getDate()}`;
-  return `on ${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  const resolved = toDate(date);
+  if (frequency.unit === "days") return `from ${formatDate(resolved)}`;
+  if (frequency.unit === "weeks") return `on ${resolved.toLocaleDateString(undefined, { weekday: "short" })}`;
+  if (frequency.unit === "months") return `on day ${resolved.getDate()}`;
+  return `on ${resolved.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
 }
 
 function formatDate(date: Date): string {
