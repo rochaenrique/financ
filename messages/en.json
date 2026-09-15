@@ -1,0 +1,276 @@
+{
+  "meta": {
+    "title": "financ",
+    "description": "Compare and project financial sources over time."
+  },
+  "common": {
+    "cancel": "Cancel",
+    "back": "Back",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "noValue": "—",
+    "language": "Language"
+  },
+  "frequency": {
+    "days": "{count, plural, one {day} other {days}}",
+    "weeks": "{count, plural, one {week} other {weeks}}",
+    "months": "{count, plural, one {month} other {months}}",
+    "years": "{count, plural, one {year} other {years}}"
+  },
+  "projectList": {
+    "heading": "Projects",
+    "subtitle": "Select a project to continue working.",
+    "import": "Import",
+    "newProject": "New Project",
+    "searchPlaceholder": "Search projects...",
+    "table": {
+      "project": "Project",
+      "id": "ID",
+      "lastModified": "Last modified"
+    },
+    "renameProjectSr": "Rename project",
+    "deleteProjectSr": "Delete project",
+    "emptyState": {
+      "title": "No projects found",
+      "hint": "Try a different search."
+    },
+    "count": "{count, plural, one {# project} other {# projects}}",
+    "storedLocally": "Stored locally",
+    "defaultProjectName": "New Project",
+    "deleteDialog": {
+      "title": "Delete project?",
+      "body": "This will permanently delete <b>{name}</b> and all of its locally stored data. This action cannot be undone."
+    },
+    "renameDialog": {
+      "title": "Rename project",
+      "body": "Enter a new name for this project.",
+      "confirm": "Rename"
+    },
+    "importDialog": {
+      "collisionTitle": "Project already exists",
+      "errorTitle": "Import failed",
+      "collisionBody": "A project named <b>{existingName}</b> already exists locally. Overwrite it with the imported project (<b>{incomingName}</b>)? This can't be undone.",
+      "overwrite": "Overwrite",
+      "ok": "OK",
+      "notAProjectFile": "That file doesn't look like a project export.",
+      "readFailed": "Couldn't read that file."
+    }
+  },
+  "projectEditor": {
+    "defaultSourceName": "New Source",
+    "copyName": "{name} copy",
+    "copyNameNumbered": "{name} copy {number}",
+    "topbar": {
+      "projects": "Projects",
+      "exportReport": "Export Report",
+      "export": "Export"
+    },
+    "loading": "Loading project...",
+    "notFound": {
+      "title": "Project not found",
+      "body": "This project does not exist in local storage.",
+      "back": "Back to projects"
+    },
+    "reportDialog": {
+      "title": "Export report",
+      "description": "Choose what to include and a file name for the PDF.",
+      "fileName": "File name",
+      "sources": "Sources",
+      "all": "All",
+      "none": "None",
+      "noSourcesYet": "No sources yet.",
+      "tableColumns": "Table columns",
+      "currency": "Currency",
+      "includeChart": "Include chart",
+      "includeSourceSummaries": "Include per-source summary (with a small chart for each source)",
+      "includeToc": "Include table of contents",
+      "export": "Export"
+    }
+  },
+  "addItemDialog": {
+    "types": {
+      "timedValues": { "label": "Time Series", "description": "Import from a PDF or enter values by hand, like a payment schedule." },
+      "indexSeries": { "label": "Index Series", "description": "Import a researched index (e.g. inflation) from a PDF, to correct other items in this source." },
+      "compoundIndex": { "label": "Compound Index", "description": "A single rate that compounds over a repeating schedule." },
+      "simpleIndex": { "label": "Simple Index", "description": "A single non-compounding rate or percentage applied on a schedule." },
+      "fixedValue": { "label": "Fixed Value", "description": "A constant value applied on a schedule." }
+    },
+    "picker": {
+      "title": "Add item",
+      "description": "Choose what kind of data you want to add to this source.",
+      "emptySource": { "title": "Empty source", "description": "Create the source now and add items later." }
+    },
+    "timedValuesMethod": {
+      "title": "Add Time Series",
+      "description": "How do you want to enter the data?",
+      "importFromPdf": { "title": "Import from PDF", "description": "Pick columns from a parsed PDF table." },
+      "enterManually": { "title": "Enter manually", "description": "Type in each date and value by hand." }
+    },
+    "settleTo": "Settle to",
+    "periodDirection": {
+      "futureOption": "End of the period (future value)",
+      "pastOption": "Start of the period (present value)",
+      "futureHint": "Raw values grow forward to the end of the schedule below.",
+      "pastHint": "Raw values discount back to the start of the schedule below — what they're worth on the first day."
+    },
+    "readingDirection": {
+      "futureOption": "Latest reading (future value)",
+      "pastOption": "Earliest reading (present value)",
+      "futureHint": "Raw values grow forward to the index's most recent reading — what they're worth today.",
+      "pastHint": "Raw values discount back to the index's earliest reading — what they were worth on day one."
+    },
+    "table": {
+      "description": "Enter each date and value by hand. A row needs both to count.",
+      "dateColumn": "Date",
+      "valueColumn": "Value",
+      "valuePlaceholder": "0.00",
+      "removeRowSr": "Remove row",
+      "noRowsYet": "No rows yet.",
+      "advanceRows": "Advance new rows by 1 month",
+      "addRow": "Add row",
+      "rowsUsable": "{usable} of {total, plural, one {# row} other {# rows}} usable."
+    },
+    "manual": {
+      "description": "Choose the value, frequency, and when the schedule applies.",
+      "valueLabel": "Value",
+      "rateLabel": "Rate",
+      "ratePer": "Rate per {unit}, e.g. 5 means 5%.",
+      "frequencyLabel": "Frequency",
+      "everyLabel": "Every",
+      "intervalLabel": "Interval",
+      "frequencySummary": "Every {count} {unit}. {description}",
+      "frequencyAnchor": {
+        "days": "Anchored by the reference date.",
+        "weeks": "Anchored by the weekday of the reference date.",
+        "months": "Anchored by the day of the month of the reference date.",
+        "years": "Anchored by the month and day of the reference date."
+      },
+      "applyLabel": "Apply",
+      "applyCount": "X times starting on a reference date",
+      "applyRange": "On this interval over a date range",
+      "applyEntire": "On this interval for the entire time",
+      "startingDate": "Starting date",
+      "occurrences": "Occurrences",
+      "rangeStart": "Range start",
+      "rangeEnd": "Range end",
+      "startOfSourceData": "Start of source data",
+      "endOfSourceData": "End of source data",
+      "referenceDate": "Reference date",
+      "referenceDateHint": "The relevant day is taken from this date: weekday for weeks, day-of-month for months, or month/day for years."
+    },
+    "indexSeriesDirection": {
+      "title": "Add Index Series",
+      "description": "Choose which end of the imported data raw values settle toward. You'll pick the PDF table next.",
+      "continue": "Continue"
+    },
+    "dateRefUnresolved": " (no longer resolves — pick a date or uncheck)",
+    "dateRefNoData": " (no dated items in this source yet)",
+    "addItem": "Add item",
+    "saveChanges": "Save changes"
+  },
+  "pdfImportDialog": {
+    "title": "Import PDF",
+    "description": "Select the columns you want to use from the imported tables. Each table needs exactly one date column and at least one number column selected.",
+    "chooseFile": "Choose PDF file",
+    "noFileSelected": "No file selected",
+    "pdfOnly": "PDF files only.",
+    "parsing": "Parsing PDF...",
+    "parseFailed": "Failed to parse PDF.",
+    "uploadValidationFailed": "None of the selected columns produced usable data. Check that you selected one date column and at least one numeric value column per table, and that those columns aren't empty in the preview above.",
+    "selectionSummary": "{datasets, plural, one {# dataset} other {# datasets}} selected · {columns, plural, one {# column} other {# columns}} selected",
+    "upload": "Upload",
+    "parseResult": "Parse result",
+    "pagesTablesSummary": "{pages, plural, one {# page} other {# pages}} · {tables, plural, one {# table} other {# tables}}",
+    "showBlankColumns": "Show blank columns",
+    "page": "Page {number}",
+    "noTablesFound": "No tables found.",
+    "blankHidden": "{count, plural, one {# blank column hidden} other {# blank columns hidden}}",
+    "ready": "✓ ready",
+    "selectedNeedsMore": "{count} selected · needs 1 date + 1 number",
+    "continuesFromPage": "Continues from the table on page {page} — join columns"
+  },
+  "sourceColumn": {
+    "duplicateSourceSr": "Duplicate source",
+    "deleteSourceSr": "Delete source",
+    "enableItemSr": "Enable item",
+    "disableItemSr": "Disable item",
+    "editItemSr": "Edit item",
+    "deleteItemSr": "Delete item",
+    "deleteItemDialog": {
+      "title": "Delete item?",
+      "body": "This will remove this {type} item from {sourceName}. This action cannot be undone."
+    },
+    "deleteSourceDialog": {
+      "title": "Delete source?",
+      "body": "This will permanently delete <b>{name}</b> and all {count, plural, one {# item} other {# items}} in it. This action cannot be undone."
+    }
+  },
+  "itemSchedule": {
+    "noDates": "No dates",
+    "dateRange": "{start} → {end}",
+    "indexSeriesRange": "{start} → {end} · settles {arrow}",
+    "countFromDate": "{occurrences}× every {frequency} from {date}",
+    "countUnresolved": "{occurrences}× every {frequency} from source start (unresolved)",
+    "rangeResolved": "every {frequency} · {start} → {end}",
+    "rangeUnresolved": "every {frequency} · source range unresolved",
+    "entire": "every {frequency} · {reference}",
+    "referenceFrom": "from {date}",
+    "referenceOnWeekday": "on {weekday}",
+    "referenceOnDayOfMonth": "on day {day}",
+    "referenceOnMonthDay": "on {monthDay}"
+  },
+  "chart": {
+    "noData": "No data to display yet.",
+    "regions": { "simple": "Simple", "compound": "Compound", "series": "Index" },
+    "settleFuture": "end (future value)",
+    "settlePast": "start (present value)",
+    "regionTooltip": "{sourceName} · {kind} index, {start} → {end}. Settles to the window's {settle}.",
+    "pointTooltip": "{sourceName}: {value} ({date})"
+  },
+  "pdfReport": {
+    "generatedOn": "Generated on {date}",
+    "summaryTable": "Summary Table",
+    "chart": "Chart",
+    "sourceSummaries": "Source Summaries",
+    "tableOfContents": "Table of Contents",
+    "noData": "No data to display.",
+    "looksLike": "Looks like:",
+    "currency": {
+      "none": "No currency (plain numbers)",
+      "usd": "US Dollar (USD)",
+      "eur": "Euro (EUR)",
+      "gbp": "British Pound (GBP)",
+      "jpy": "Japanese Yen (JPY)",
+      "brl": "Brazilian Real (BRL)",
+      "cad": "Canadian Dollar (CAD)",
+      "aud": "Australian Dollar (AUD)",
+      "chf": "Swiss Franc (CHF)",
+      "cny": "Chinese Yuan (CNY)",
+      "inr": "Indian Rupee (INR)",
+      "mxn": "Mexican Peso (MXN)",
+      "ars": "Argentine Peso (ARS)",
+      "krw": "South Korean Won (KRW)",
+      "sek": "Swedish Krona (SEK)",
+      "nok": "Norwegian Krone (NOK)",
+      "nzd": "New Zealand Dollar (NZD)"
+    }
+  },
+  "resultsTable": {
+    "heading": "Results",
+    "sourceColumn": "Source",
+    "emptyState": "No sources to compare yet.",
+    "columns": {
+      "raw": "Raw",
+      "rawTitle": "Sum of raw values, ignoring any simple/compound-index correction",
+      "comparedRaw": "Raw Compared",
+      "comparedRawTitle": "Raw total compared to the lowest Raw among sources",
+      "vam": "VAM",
+      "comparedVam": "VAM Compared",
+      "correction": "Correction",
+      "correctionTitle": "VAM minus Raw — the net effect of index correction",
+      "itemCount": "Items",
+      "dateRange": "Date Range"
+    }
+  }
+}

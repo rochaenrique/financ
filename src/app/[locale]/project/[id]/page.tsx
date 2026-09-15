@@ -2,7 +2,9 @@
 
 import React from 'react';
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
+import { useTranslations, useFormatter } from "next-intl"
+import { useRouter } from "@/i18n/navigation"
 import { ArrowLeft, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,9 +22,10 @@ import {
   type ProjectSource,
 } from "@/lib/projects"
 
-import { RESULT_COLUMNS, type ColumnKey } from "@/lib/results"
-import { generateProjectReportPdf, CURRENCY_OPTIONS, type CurrencyCode } from "@/lib/pdf-report"
+import { RESULT_COLUMNS, resultColumnLabel, resultColumnTitle, type ColumnKey } from "@/lib/results"
+import { generateProjectReportPdf, currencyOptionLabel, CURRENCY_OPTIONS, type CurrencyCode } from "@/lib/pdf-report"
 import { ProjectEditor } from "@/components/project/project-editor"
+import { LanguageSwitcher } from "@/components/project/language-switcher"
 import { getSourcedFromDatasets } from "@/lib/pdf-datasets"
 
 import dynamic from "next/dynamic"
@@ -61,9 +64,11 @@ export default function ProjectPage() {
   const PdfImportDialog = dynamic(() => import("@/components/project/pdf-import-dialog")
                                   .then((module) => module.PdfImportDialog), { ssr: false });
   
+  const t = useTranslations();
+  const format = useFormatter();
   const params = useParams();
   const router = useRouter();
-  
+
   const id = params.id as string;
   
   const [project, setProject] = useState<Project | null>(null);
@@ -87,22 +92,22 @@ export default function ProjectPage() {
     return (
             <main className="flex min-h-screen items-center justify-center">
             <p className="text-sm text-muted-foreground">
-            Loading project...
+            {t("projectEditor.loading")}
             </p>
             </main>
             );
   }
-  
+
   if (!project) {
     return (
             <main className=" flex min-h-screen flex-col items-center justify-center gap-4 ">
             <div className="text-center">
-            <h1 className="text-xl font-semibold">Project not found</h1>
-            <p className=" mt-1 text-sm text-muted-foreground "> This project does not exist in local storage. </p>
+            <h1 className="text-xl font-semibold">{t("projectEditor.notFound.title")}</h1>
+            <p className=" mt-1 text-sm text-muted-foreground ">{t("projectEditor.notFound.body")}</p>
             </div>
-            
+
             <Button variant="outline" onClick={() => router.push("/")} >
-            <ArrowLeft className="mr-2 h-4 w-4" />Back to projects
+            <ArrowLeft className="mr-2 h-4 w-4" />{t("projectEditor.notFound.back")}
             </Button>
             </main>
             );
@@ -130,7 +135,7 @@ export default function ProjectPage() {
     
     const source: ProjectSource = {
       id: crypto.randomUUID(),
-      name: "New Source",
+      name: t("projectEditor.defaultSourceName"),
       color: randomSourceColor(),
       items,
     };
@@ -276,7 +281,7 @@ export default function ProjectPage() {
       showSourceSummaries,
       currency: reportCurrency,
       includeToc,
-    });
+    }, { t, formatNumber: format.number, formatDate: format.dateTime });
     downloadBlob(toPdfFilename(reportFilename, project), blob);
     setReportDialogOpen(false);
   };
@@ -287,7 +292,7 @@ export default function ProjectPage() {
     const source = project.sources.find((s) => s.id === sourceId);
     if (!source) return;
 
-    const duplicate = duplicateSource(source, project.sources.map((s) => s.name));
+    const duplicate = duplicateSource(source, project.sources.map((s) => s.name), t);
 
     const updatedProject: Project = {
       ...project,
@@ -303,17 +308,19 @@ export default function ProjectPage() {
           <main className="flex h-screen flex-col overflow-hidden bg-background">
           <div className=" flex h-12 shrink-0 items-center border-b px-4">
           <Button variant="ghost" size="sm" onClick={() => router.push("/")} >
-          <ArrowLeft className="mr-2 h-4 w-4" />Projects
+          <ArrowLeft className="mr-2 h-4 w-4" />{t("projectEditor.topbar.projects")}
           </Button>
           <div className="mx-3 h-5 w-px bg-border" />
           <span className="text-sm font-medium">{project.name}</span>
           <div className="flex-1" />
           <Button variant="ghost" size="sm" onClick={handleOpenReportDialog}>
-          <FileText className="mr-2 h-4 w-4" />Export Report
+          <FileText className="mr-2 h-4 w-4" />{t("projectEditor.topbar.exportReport")}
           </Button>
           <Button variant="ghost" size="sm" onClick={handleExport}>
-          <Download className="mr-2 h-4 w-4" />Export
+          <Download className="mr-2 h-4 w-4" />{t("projectEditor.topbar.export")}
           </Button>
+          <div className="mx-3 h-5 w-px bg-border" />
+          <LanguageSwitcher />
           </div>
 
           <ProjectEditor project={project} onAddSource={handleAddSource} onAddItem={handleAddItems} onEditItem={handleEditItem} onDeleteItem={handleDeleteItem} onToggleItemDisabled={handleToggleItemDisabled} onDuplicateSource={handleDuplicateSource} onDeleteSource={handleDeleteSource}/>
@@ -321,26 +328,26 @@ export default function ProjectPage() {
           <Dialog open={reportDialogOpen} onOpenChange={(open) => { setReportDialogOpen(open); if (!open) setReportFilename(""); }}>
           <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden sm:max-w-lg">
           <DialogHeader className="shrink-0">
-          <DialogTitle>Export report</DialogTitle>
-          <DialogDescription>Choose what to include and a file name for the PDF.</DialogDescription>
+          <DialogTitle>{t("projectEditor.reportDialog.title")}</DialogTitle>
+          <DialogDescription>{t("projectEditor.reportDialog.description")}</DialogDescription>
           </DialogHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
           <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium">File name</label>
+          <label className="text-sm font-medium">{t("projectEditor.reportDialog.fileName")}</label>
           <Input value={reportFilename} onChange={(event) => setReportFilename(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") handleConfirmExportReport(); }} autoFocus />
           </div>
 
           <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-          <label className="text-sm font-medium">Sources</label>
+          <label className="text-sm font-medium">{t("projectEditor.reportDialog.sources")}</label>
           <div className="flex gap-2 text-xs text-muted-foreground">
-          <button type="button" onClick={() => setAllSourcesIncluded(true)} className="hover:text-foreground hover:underline">All</button>
-          <button type="button" onClick={() => setAllSourcesIncluded(false)} className="hover:text-foreground hover:underline">None</button>
+          <button type="button" onClick={() => setAllSourcesIncluded(true)} className="hover:text-foreground hover:underline">{t("projectEditor.reportDialog.all")}</button>
+          <button type="button" onClick={() => setAllSourcesIncluded(false)} className="hover:text-foreground hover:underline">{t("projectEditor.reportDialog.none")}</button>
           </div>
           </div>
           <div className="flex flex-col gap-0.5 rounded-lg border p-1.5">
-          {project.sources.length === 0 && <p className="px-2 py-1.5 text-sm text-muted-foreground">No sources yet.</p>}
+          {project.sources.length === 0 && <p className="px-2 py-1.5 text-sm text-muted-foreground">{t("projectEditor.reportDialog.noSourcesYet")}</p>}
           {project.sources.map((source) => (
                                              <label key={source.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/50">
                                              <input type="checkbox" checked={includedSourceIds.has(source.id)} onChange={() => toggleIncludedSource(source.id)} className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-primary" />
@@ -352,14 +359,14 @@ export default function ProjectPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium">Table columns</label>
+          <label className="text-sm font-medium">{t("projectEditor.reportDialog.tableColumns")}</label>
           <div className="flex flex-wrap gap-1.5">
           {RESULT_COLUMNS.map((column) => (
                                             <button
                                             key={column.key}
                                             type="button"
                                             onClick={() => toggleReportColumn(column.key)}
-                                            title={column.title}
+                                            title={resultColumnTitle(t, column)}
                                             className={cn(
                                                           "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                                                           reportColumns.has(column.key)
@@ -367,38 +374,38 @@ export default function ProjectPage() {
                                                           : "border-border bg-background text-muted-foreground hover:bg-muted"
                                                           )}
                                             >
-                                            {column.label}
+                                            {resultColumnLabel(t, column)}
                                             </button>
                                             ))}
           </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium">Currency</label>
+          <label className="text-sm font-medium">{t("projectEditor.reportDialog.currency")}</label>
           <select value={reportCurrency} onChange={(event) => setReportCurrency(event.target.value as CurrencyCode)} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-          {CURRENCY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}
+          {CURRENCY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{currencyOptionLabel(t, option)}</option>)}
           </select>
           </div>
 
           <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input type="checkbox" checked={showGraph} onChange={(event) => setShowGraph(event.target.checked)} className="h-3.5 w-3.5 cursor-pointer accent-primary" />
-          Include chart
+          {t("projectEditor.reportDialog.includeChart")}
           </label>
 
           <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input type="checkbox" checked={showSourceSummaries} onChange={(event) => setShowSourceSummaries(event.target.checked)} className="h-3.5 w-3.5 cursor-pointer accent-primary" />
-          Include per-source summary (with a small chart for each source)
+          {t("projectEditor.reportDialog.includeSourceSummaries")}
           </label>
 
           <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input type="checkbox" checked={includeToc} onChange={(event) => setIncludeToc(event.target.checked)} className="h-3.5 w-3.5 cursor-pointer accent-primary" />
-          Include table of contents
+          {t("projectEditor.reportDialog.includeToc")}
           </label>
           </div>
 
           <DialogFooter className="shrink-0 pt-2">
-          <Button variant="outline" onClick={() => setReportDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleConfirmExportReport} disabled={!reportFilename.trim()}>Export</Button>
+          <Button variant="outline" onClick={() => setReportDialogOpen(false)}>{t("common.cancel")}</Button>
+          <Button onClick={handleConfirmExportReport} disabled={!reportFilename.trim()}>{t("projectEditor.reportDialog.export")}</Button>
           </DialogFooter>
           </DialogContent>
           </Dialog>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react";
+import { useTranslations, useFormatter } from "next-intl";
 import { Copy, Plus, Pencil, Trash2, Eye, EyeOff, GripVertical, CalendarDays } from "lucide-react";
 
 import type { ProjectItem, ProjectItemFrequency, ProjectSource } from "@/lib/projects";
@@ -8,8 +9,14 @@ import { resolveItemDateRange } from "@/lib/projects";
 import { toDate, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ItemIcon } from "./item-icon";
+import { ItemIcon, TYPE_MESSAGE_KEY } from "./item-icon";
 import { AddItemDialog } from "./add-item-dialog";
+
+type Translate = ReturnType<typeof useTranslations>;
+// Derived from next-intl's own formatter rather than hand-rolled against
+// Intl.DateTimeFormatOptions, whose option types are narrower per-field
+// than the general Intl ones (see results.ts for the full rationale).
+type DateFormatter = ReturnType<typeof useFormatter>["dateTime"];
 
 type Props = {
   source: ProjectSource;
@@ -22,6 +29,8 @@ type Props = {
 };
 
 export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onToggleItemDisabled, onDuplicate, onDelete }: Props) {
+  const t = useTranslations();
+  const format = useFormatter();
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<ProjectItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<ProjectItem | null>(null);
@@ -52,11 +61,11 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onT
           <div className="flex shrink-0 items-center">
           <Button variant="ghost" size="icon" onClick={onDuplicate}>
           <Copy className="h-4 w-4" />
-          <span className="sr-only">Duplicate source</span>
+          <span className="sr-only">{t("sourceColumn.duplicateSourceSr")}</span>
           </Button>
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => setConfirmDeleteSource(true)}>
           <Trash2 className="h-4 w-4" />
-          <span className="sr-only">Delete source</span>
+          <span className="sr-only">{t("sourceColumn.deleteSourceSr")}</span>
           </Button>
           </div>
           </div>
@@ -67,25 +76,25 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onT
                             <GripVertical className="h-5 w-5 shrink-0 text-muted-foreground" />
                             <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
                             <ItemIcon type={item.data.type} />
-                            <span className={cn("truncate text-sm font-semibold", item.isDisabled && "line-through")}>{item.data.type}</span>
+                            <span className={cn("truncate text-sm font-semibold", item.isDisabled && "line-through")}>{t(`addItemDialog.types.${TYPE_MESSAGE_KEY[item.data.type]}.label`)}</span>
                             </div>
                             <div className="flex shrink-0 items-center gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onToggleItemDisabled(item.id)}>
                             {item.isDisabled ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            <span className="sr-only">{item.isDisabled ? "Enable item" : "Disable item"}</span>
+                            <span className="sr-only">{item.isDisabled ? t("sourceColumn.enableItemSr") : t("sourceColumn.disableItemSr")}</span>
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setItemToEdit(item)}>
                             <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Edit item</span>
+                            <span className="sr-only">{t("sourceColumn.editItemSr")}</span>
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setItemToDelete(item)}>
                             <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete item</span>
+                            <span className="sr-only">{t("sourceColumn.deleteItemSr")}</span>
                             </Button>
                             </div>
                             </div>
-                            <div className="flex h-7 items-center gap-1 truncate rounded bg-slate-200 px-2 text-xs" title={formatItemSchedule(item, source)}>
-                            <CalendarDays className="h-4 w-4 shrink-0" />{formatItemSchedule(item, source)}
+                            <div className="flex h-7 items-center gap-1 truncate rounded bg-slate-200 px-2 text-xs" title={formatItemSchedule(item, source, t, format.dateTime)}>
+                            <CalendarDays className="h-4 w-4 shrink-0" />{formatItemSchedule(item, source, t, format.dateTime)}
                             </div>
                             </div>)}
           <Button variant="ghost" className="h-10 w-full bg-slate-300 hover:bg-slate-400" onClick={() => setAddItemOpen(true)}>
@@ -98,16 +107,16 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onT
           <AlertDialog open={itemToDelete !== null} onOpenChange={(open) => !open && setItemToDelete(null)}>
           <AlertDialogContent>
           <AlertDialogHeader>
-          <AlertDialogTitle>Delete item?</AlertDialogTitle>
+          <AlertDialogTitle>{t("sourceColumn.deleteItemDialog.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-          This will remove this {itemToDelete?.data.type.replace("-", " ")} item from {source.name}. This action cannot be undone.
+          {itemToDelete && t("sourceColumn.deleteItemDialog.body", { type: t(`addItemDialog.types.${TYPE_MESSAGE_KEY[itemToDelete.data.type]}.label`), sourceName: source.name })}
           </AlertDialogDescription>
           </AlertDialogHeader>
 
           <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-          Delete
+          {t("common.delete")}
           </AlertDialogAction>
           </AlertDialogFooter>
           </AlertDialogContent>
@@ -116,16 +125,16 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onT
           <AlertDialog open={confirmDeleteSource} onOpenChange={setConfirmDeleteSource}>
           <AlertDialogContent>
           <AlertDialogHeader>
-          <AlertDialogTitle>Delete source?</AlertDialogTitle>
+          <AlertDialogTitle>{t("sourceColumn.deleteSourceDialog.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-          This will permanently delete <span className="font-medium">{source.name}</span> and all {source.items.length} item{source.items.length === 1 ? "" : "s"} in it. This action cannot be undone.
+          {t.rich("sourceColumn.deleteSourceDialog.body", { name: source.name, count: source.items.length, b: (chunks) => <span className="font-medium">{chunks}</span> })}
           </AlertDialogDescription>
           </AlertDialogHeader>
 
           <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction onClick={handleConfirmDeleteSource} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-          Delete
+          {t("common.delete")}
           </AlertDialogAction>
           </AlertDialogFooter>
           </AlertDialogContent>
@@ -134,48 +143,51 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onT
           );
 }
 
-function formatItemSchedule(item: ProjectItem, source: ProjectSource): string {
+function formatItemSchedule(item: ProjectItem, source: ProjectSource, t: Translate, formatDateFn: DateFormatter): string {
   if (item.data.type === "timed-values") {
-    if (item.data.times.length === 0) return "No dates";
+    if (item.data.times.length === 0) return t("itemSchedule.noDates");
     const start = item.data.times[0];
     const end = item.data.times[item.data.times.length - 1];
-    return `${formatDate(start)} → ${formatDate(end)}`;
+    return t("itemSchedule.dateRange", { start: formatDate(start, formatDateFn), end: formatDate(end, formatDateFn) });
   }
 
   if (item.data.type === "index-series") {
-    if (item.data.times.length === 0) return "No dates";
+    if (item.data.times.length === 0) return t("itemSchedule.noDates");
     const { start, end } = resolveItemDateRange(item, source);
     const arrow = (item.data.direction ?? "future") === "past" ? "←" : "→";
-    return start && end ? `${formatDate(start)} → ${formatDate(end)} · settles ${arrow}` : "No dates";
+    return start && end ? t("itemSchedule.indexSeriesRange", { start: formatDate(start, formatDateFn), end: formatDate(end, formatDateFn), arrow }) : t("itemSchedule.noDates");
   }
 
   const schedule = item.data.schedule;
-  const frequency = formatFrequency(schedule.frequency);
+  const frequency = formatFrequency(schedule.frequency, t);
 
   if (schedule.kind === "count") {
     const { start } = resolveItemDateRange(item, source);
-    return start ? `${schedule.occurrences}× every ${frequency} from ${formatDate(start)}` : `${schedule.occurrences}× every ${frequency} from source start (unresolved)`;
+    return start
+      ? t("itemSchedule.countFromDate", { occurrences: schedule.occurrences, frequency, date: formatDate(start, formatDateFn) })
+      : t("itemSchedule.countUnresolved", { occurrences: schedule.occurrences, frequency });
   }
   if (schedule.kind === "range") {
     const { start, end } = resolveItemDateRange(item, source);
-    return start && end ? `every ${frequency} · ${formatDate(start)} → ${formatDate(end)}` : `every ${frequency} · source range unresolved`;
+    return start && end
+      ? t("itemSchedule.rangeResolved", { frequency, start: formatDate(start, formatDateFn), end: formatDate(end, formatDateFn) })
+      : t("itemSchedule.rangeUnresolved", { frequency });
   }
-  return `every ${frequency} · ${formatReference(schedule.frequency, schedule.referenceDate)}`;
+  return t("itemSchedule.entire", { frequency, reference: formatReference(schedule.frequency, schedule.referenceDate, t, formatDateFn) });
 }
 
-function formatFrequency(frequency: ProjectItemFrequency): string {
-  const unit = frequency.unit.slice(0, -1);
-  return `${frequency.every} ${frequency.every === 1 ? unit : frequency.unit}`;
+function formatFrequency(frequency: ProjectItemFrequency, t: Translate): string {
+  return `${frequency.every} ${t(`frequency.${frequency.unit}`, { count: frequency.every })}`;
 }
 
-function formatReference(frequency: ProjectItemFrequency, date: Date): string {
+function formatReference(frequency: ProjectItemFrequency, date: Date, t: Translate, formatDateFn: DateFormatter): string {
   const resolved = toDate(date);
-  if (frequency.unit === "days") return `from ${formatDate(resolved)}`;
-  if (frequency.unit === "weeks") return `on ${resolved.toLocaleDateString(undefined, { weekday: "short" })}`;
-  if (frequency.unit === "months") return `on day ${resolved.getDate()}`;
-  return `on ${resolved.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  if (frequency.unit === "days") return t("itemSchedule.referenceFrom", { date: formatDate(resolved, formatDateFn) });
+  if (frequency.unit === "weeks") return t("itemSchedule.referenceOnWeekday", { weekday: formatDateFn(resolved, { weekday: "short" }) });
+  if (frequency.unit === "months") return t("itemSchedule.referenceOnDayOfMonth", { day: resolved.getDate() });
+  return t("itemSchedule.referenceOnMonthDay", { monthDay: formatDateFn(resolved, { month: "short", day: "numeric" }) });
 }
 
-function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+function formatDate(date: Date, formatDateFn: DateFormatter): string {
+  return formatDateFn(new Date(date), { day: "2-digit", month: "short", year: "numeric" });
 }

@@ -1,5 +1,10 @@
 import type { ProjectSource } from "./projects";
 import { expandCorrectedSourcePoints, getIndexRegions } from "./valuation";
+// Type-only: derived from next-intl's own formatter rather than hand-rolled
+// against Intl.NumberFormatOptions/Intl.DateTimeFormatOptions, whose option
+// types are narrower per-field than the general Intl ones (see results.ts
+// for the full rationale). Erased at build time, so no runtime dependency.
+import type { useFormatter } from "next-intl";
 
 export type ChartPoint = { time: Date; value: number; color: string; sourceId: string; sourceName: string };
 export type ChartRegion = { kind: "simple" | "compound" | "series"; direction: "future" | "past"; start: Date | null; end: Date; color: string; sourceName: string };
@@ -95,14 +100,31 @@ export function computeChartLayout(sources: ProjectSource[], width: number, heig
   return { points, regions, width, height, margin, minValue, maxValue, xForTime, yForValue, baselineY, tickTimes, yTicks, legendSources };
 }
 
-export function formatAxisDate(date: Date): string {
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+type NumberFormatter = ReturnType<typeof useFormatter>["number"];
+type DateFormatter = ReturnType<typeof useFormatter>["dateTime"];
+
+export function formatAxisDate(date: Date, formatDate: DateFormatter): string {
+  return formatDate(date, { month: "short", day: "numeric" });
 }
 
-export function formatAxisValue(value: number): string {
-  return Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toFixed(0);
+// Keeps the compact "1.2k" abbreviation above 1000 (axis labels have tight
+// horizontal space, so a longer localized word like "mil" risks crowding) --
+// only the number itself becomes locale-aware (decimal separator, rounding).
+export function formatAxisValue(value: number, formatNumber: NumberFormatter): string {
+  return Math.abs(value) >= 1000
+    ? `${formatNumber(value / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`
+    : formatNumber(value, { maximumFractionDigits: 0 });
 }
 
-export const REGION_LABEL: Record<ChartRegion["kind"], string> = { simple: "Simple", compound: "Compound", series: "Index" };
+// t is a minimal structural subset of next-intl's translator, matching the
+// same pattern used in results.ts -- lets this stay a plain module with no
+// next-intl dependency while still letting the caller (which does have
+// hook access) supply translated copy.
+type Translate = (key: string) => string;
+
+export function regionLabel(t: Translate, kind: ChartRegion["kind"]): string {
+  return t(`chart.regions.${kind}`);
+}
+
 // Points settle toward the arrow's end: forward to the future, or back to the past.
 export const REGION_DIRECTION_ARROW: Record<ChartRegion["direction"], string> = { future: "→", past: "←" };

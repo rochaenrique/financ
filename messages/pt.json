@@ -1,0 +1,276 @@
+{
+  "meta": {
+    "title": "financ",
+    "description": "Compare e projete fontes financeiras ao longo do tempo."
+  },
+  "common": {
+    "cancel": "Cancelar",
+    "back": "Voltar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "add": "Adicionar",
+    "noValue": "—",
+    "language": "Idioma"
+  },
+  "frequency": {
+    "days": "{count, plural, one {dia} other {dias}}",
+    "weeks": "{count, plural, one {semana} other {semanas}}",
+    "months": "{count, plural, one {mês} other {meses}}",
+    "years": "{count, plural, one {ano} other {anos}}"
+  },
+  "projectList": {
+    "heading": "Projetos",
+    "subtitle": "Selecione um projeto para continuar.",
+    "import": "Importar",
+    "newProject": "Novo Projeto",
+    "searchPlaceholder": "Buscar projetos...",
+    "table": {
+      "project": "Projeto",
+      "id": "ID",
+      "lastModified": "Última modificação"
+    },
+    "renameProjectSr": "Renomear projeto",
+    "deleteProjectSr": "Excluir projeto",
+    "emptyState": {
+      "title": "Nenhum projeto encontrado",
+      "hint": "Tente outra busca."
+    },
+    "count": "{count, plural, one {# projeto} other {# projetos}}",
+    "storedLocally": "Armazenado localmente",
+    "defaultProjectName": "Novo Projeto",
+    "deleteDialog": {
+      "title": "Excluir projeto?",
+      "body": "Isso excluirá permanentemente <b>{name}</b> e todos os seus dados armazenados localmente. Esta ação não pode ser desfeita."
+    },
+    "renameDialog": {
+      "title": "Renomear projeto",
+      "body": "Digite um novo nome para este projeto.",
+      "confirm": "Renomear"
+    },
+    "importDialog": {
+      "collisionTitle": "O projeto já existe",
+      "errorTitle": "Falha ao importar",
+      "collisionBody": "Já existe localmente um projeto chamado <b>{existingName}</b>. Sobrescrevê-lo com o projeto importado (<b>{incomingName}</b>)? Isso não pode ser desfeito.",
+      "overwrite": "Sobrescrever",
+      "ok": "OK",
+      "notAProjectFile": "Esse arquivo não parece ser uma exportação de projeto.",
+      "readFailed": "Não foi possível ler o arquivo."
+    }
+  },
+  "projectEditor": {
+    "defaultSourceName": "Nova Fonte",
+    "copyName": "{name} cópia",
+    "copyNameNumbered": "{name} cópia {number}",
+    "topbar": {
+      "projects": "Projetos",
+      "exportReport": "Exportar relatório",
+      "export": "Exportar"
+    },
+    "loading": "Carregando projeto...",
+    "notFound": {
+      "title": "Projeto não encontrado",
+      "body": "Este projeto não existe no armazenamento local.",
+      "back": "Voltar para projetos"
+    },
+    "reportDialog": {
+      "title": "Exportar relatório",
+      "description": "Escolha o que incluir e um nome de arquivo para o PDF.",
+      "fileName": "Nome do arquivo",
+      "sources": "Fontes",
+      "all": "Todas",
+      "none": "Nenhuma",
+      "noSourcesYet": "Ainda não há fontes.",
+      "tableColumns": "Colunas da tabela",
+      "currency": "Moeda",
+      "includeChart": "Incluir gráfico",
+      "includeSourceSummaries": "Incluir resumo por fonte (com um pequeno gráfico para cada uma)",
+      "includeToc": "Incluir sumário",
+      "export": "Exportar"
+    }
+  },
+  "addItemDialog": {
+    "types": {
+      "timedValues": { "label": "Série Temporal", "description": "Importe de um PDF ou digite os valores manualmente, como um cronograma de pagamentos." },
+      "indexSeries": { "label": "Série de Índice", "description": "Importe um índice pesquisado (ex.: inflação) de um PDF, para corrigir outros itens desta fonte." },
+      "compoundIndex": { "label": "Índice Composto", "description": "Uma única taxa que capitaliza em um cronograma repetitivo." },
+      "simpleIndex": { "label": "Índice Simples", "description": "Uma única taxa ou porcentagem não composta aplicada em um cronograma." },
+      "fixedValue": { "label": "Valor Fixo", "description": "Um valor constante aplicado em um cronograma." }
+    },
+    "picker": {
+      "title": "Adicionar item",
+      "description": "Escolha que tipo de dado você quer adicionar a esta fonte.",
+      "emptySource": { "title": "Fonte vazia", "description": "Crie a fonte agora e adicione itens depois." }
+    },
+    "timedValuesMethod": {
+      "title": "Adicionar Série Temporal",
+      "description": "Como você quer inserir os dados?",
+      "importFromPdf": { "title": "Importar de PDF", "description": "Escolha colunas de uma tabela extraída de um PDF." },
+      "enterManually": { "title": "Inserir manualmente", "description": "Digite cada data e valor manualmente." }
+    },
+    "settleTo": "Referenciar em",
+    "periodDirection": {
+      "futureOption": "Fim do período (valor futuro)",
+      "pastOption": "Início do período (valor presente)",
+      "futureHint": "Os valores brutos crescem em direção ao fim do cronograma abaixo.",
+      "pastHint": "Os valores brutos são descontados em direção ao início do cronograma abaixo — o que valiam no primeiro dia."
+    },
+    "readingDirection": {
+      "futureOption": "Leitura mais recente (valor futuro)",
+      "pastOption": "Leitura mais antiga (valor presente)",
+      "futureHint": "Os valores brutos crescem em direção à leitura mais recente do índice — o que valem hoje.",
+      "pastHint": "Os valores brutos são descontados em direção à leitura mais antiga do índice — o que valiam no primeiro dia."
+    },
+    "table": {
+      "description": "Insira cada data e valor manualmente. Uma linha precisa de ambos para contar.",
+      "dateColumn": "Data",
+      "valueColumn": "Valor",
+      "valuePlaceholder": "0.00",
+      "removeRowSr": "Remover linha",
+      "noRowsYet": "Ainda não há linhas.",
+      "advanceRows": "Avançar novas linhas em 1 mês",
+      "addRow": "Adicionar linha",
+      "rowsUsable": "{usable} de {total, plural, one {# linha} other {# linhas}} utilizável."
+    },
+    "manual": {
+      "description": "Escolha o valor, a frequência e quando o cronograma se aplica.",
+      "valueLabel": "Valor",
+      "rateLabel": "Taxa",
+      "ratePer": "Taxa por {unit}, ex.: 5 significa 5%.",
+      "frequencyLabel": "Frequência",
+      "everyLabel": "A cada",
+      "intervalLabel": "Intervalo",
+      "frequencySummary": "A cada {count} {unit}. {description}",
+      "frequencyAnchor": {
+        "days": "Ancorado na data de referência.",
+        "weeks": "Ancorado no dia da semana da data de referência.",
+        "months": "Ancorado no dia do mês da data de referência.",
+        "years": "Ancorado no mês e dia da data de referência."
+      },
+      "applyLabel": "Aplicar",
+      "applyCount": "X vezes a partir de uma data de referência",
+      "applyRange": "Neste intervalo durante um período de datas",
+      "applyEntire": "Neste intervalo durante todo o tempo",
+      "startingDate": "Data de início",
+      "occurrences": "Ocorrências",
+      "rangeStart": "Início do período",
+      "rangeEnd": "Fim do período",
+      "startOfSourceData": "Início dos dados da fonte",
+      "endOfSourceData": "Fim dos dados da fonte",
+      "referenceDate": "Data de referência",
+      "referenceDateHint": "O dia relevante é tirado desta data: dia da semana para semanas, dia do mês para meses, ou mês/dia para anos."
+    },
+    "indexSeriesDirection": {
+      "title": "Adicionar Série de Índice",
+      "description": "Escolha para qual extremidade dos dados importados os valores brutos se referenciam. Você escolherá a tabela do PDF a seguir.",
+      "continue": "Continuar"
+    },
+    "dateRefUnresolved": " (não resolve mais — escolha uma data ou desmarque)",
+    "dateRefNoData": " (ainda não há itens com data nesta fonte)",
+    "addItem": "Adicionar item",
+    "saveChanges": "Salvar alterações"
+  },
+  "pdfImportDialog": {
+    "title": "Importar PDF",
+    "description": "Selecione as colunas que você quer usar das tabelas importadas. Cada tabela precisa de exatamente uma coluna de data e ao menos uma coluna numérica selecionadas.",
+    "chooseFile": "Escolher arquivo PDF",
+    "noFileSelected": "Nenhum arquivo selecionado",
+    "pdfOnly": "Somente arquivos PDF.",
+    "parsing": "Analisando PDF...",
+    "parseFailed": "Falha ao analisar o PDF.",
+    "uploadValidationFailed": "Nenhuma das colunas selecionadas produziu dados utilizáveis. Verifique se você selecionou uma coluna de data e ao menos uma coluna numérica por tabela, e se essas colunas não estão vazias na pré-visualização acima.",
+    "selectionSummary": "{datasets, plural, one {# conjunto de dados} other {# conjuntos de dados}} selecionado · {columns, plural, one {# coluna} other {# colunas}} selecionada",
+    "upload": "Enviar",
+    "parseResult": "Resultado da análise",
+    "pagesTablesSummary": "{pages, plural, one {# página} other {# páginas}} · {tables, plural, one {# tabela} other {# tabelas}}",
+    "showBlankColumns": "Mostrar colunas em branco",
+    "page": "Página {number}",
+    "noTablesFound": "Nenhuma tabela encontrada.",
+    "blankHidden": "{count, plural, one {# coluna em branco oculta} other {# colunas em branco ocultas}}",
+    "ready": "✓ pronto",
+    "selectedNeedsMore": "{count} selecionadas · é necessária 1 coluna de data e 1 numérica",
+    "continuesFromPage": "Continua da tabela na página {page} — unir colunas"
+  },
+  "sourceColumn": {
+    "duplicateSourceSr": "Duplicar fonte",
+    "deleteSourceSr": "Excluir fonte",
+    "enableItemSr": "Habilitar item",
+    "disableItemSr": "Desabilitar item",
+    "editItemSr": "Editar item",
+    "deleteItemSr": "Excluir item",
+    "deleteItemDialog": {
+      "title": "Excluir item?",
+      "body": "Isso removerá este item de {type} de {sourceName}. Esta ação não pode ser desfeita."
+    },
+    "deleteSourceDialog": {
+      "title": "Excluir fonte?",
+      "body": "Isso excluirá permanentemente <b>{name}</b> e {count, plural, one {# item} other {# itens}} nela contidos. Esta ação não pode ser desfeita."
+    }
+  },
+  "itemSchedule": {
+    "noDates": "Sem datas",
+    "dateRange": "{start} → {end}",
+    "indexSeriesRange": "{start} → {end} · referencia {arrow}",
+    "countFromDate": "{occurrences}× a cada {frequency} a partir de {date}",
+    "countUnresolved": "{occurrences}× a cada {frequency} a partir do início da fonte (não resolvido)",
+    "rangeResolved": "a cada {frequency} · {start} → {end}",
+    "rangeUnresolved": "a cada {frequency} · período da fonte não resolvido",
+    "entire": "a cada {frequency} · {reference}",
+    "referenceFrom": "a partir de {date}",
+    "referenceOnWeekday": "em {weekday}",
+    "referenceOnDayOfMonth": "no dia {day}",
+    "referenceOnMonthDay": "em {monthDay}"
+  },
+  "chart": {
+    "noData": "Ainda não há dados para exibir.",
+    "regions": { "simple": "Simples", "compound": "Composto", "series": "Índice" },
+    "settleFuture": "fim (valor futuro)",
+    "settlePast": "início (valor presente)",
+    "regionTooltip": "{sourceName} · índice {kind}, {start} → {end}. Referencia o {settle} da janela.",
+    "pointTooltip": "{sourceName}: {value} ({date})"
+  },
+  "pdfReport": {
+    "generatedOn": "Gerado em {date}",
+    "summaryTable": "Tabela Resumo",
+    "chart": "Gráfico",
+    "sourceSummaries": "Resumos por Fonte",
+    "tableOfContents": "Sumário",
+    "noData": "Não há dados para exibir.",
+    "looksLike": "Aparência:",
+    "currency": {
+      "none": "Sem moeda (números simples)",
+      "usd": "Dólar americano (USD)",
+      "eur": "Euro (EUR)",
+      "gbp": "Libra esterlina (GBP)",
+      "jpy": "Iene japonês (JPY)",
+      "brl": "Real brasileiro (BRL)",
+      "cad": "Dólar canadense (CAD)",
+      "aud": "Dólar australiano (AUD)",
+      "chf": "Franco suíço (CHF)",
+      "cny": "Yuan chinês (CNY)",
+      "inr": "Rupia indiana (INR)",
+      "mxn": "Peso mexicano (MXN)",
+      "ars": "Peso argentino (ARS)",
+      "krw": "Won sul-coreano (KRW)",
+      "sek": "Coroa sueca (SEK)",
+      "nok": "Coroa norueguesa (NOK)",
+      "nzd": "Dólar neozelandês (NZD)"
+    }
+  },
+  "resultsTable": {
+    "heading": "Resultados",
+    "sourceColumn": "Fonte",
+    "emptyState": "Ainda não há fontes para comparar.",
+    "columns": {
+      "raw": "Bruto",
+      "rawTitle": "Soma dos valores brutos, sem aplicar correção de índice simples ou composto",
+      "comparedRaw": "Bruto Comparado",
+      "comparedRawTitle": "Total bruto comparado ao menor valor bruto entre as fontes",
+      "vam": "VAM",
+      "comparedVam": "VAM Comparado",
+      "correction": "Correção",
+      "correctionTitle": "VAM menos o valor bruto — o efeito líquido da correção por índice",
+      "itemCount": "Itens",
+      "dateRange": "Período"
+    }
+  }
+}

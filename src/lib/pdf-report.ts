@@ -1,35 +1,54 @@
 import type { Project, ProjectSource } from "./projects";
-import { computeResults, RESULT_COLUMNS, type ColumnKey, type ResultColumn } from "./results";
-import { computeChartLayout, formatAxisDate, formatAxisValue, REGION_LABEL, type ChartMargin } from "./chart-geometry";
+import { computeResults, RESULT_COLUMNS, resultColumnLabel, type ColumnKey, type ResultColumn } from "./results";
+import { computeChartLayout, formatAxisDate, formatAxisValue, regionLabel, type ChartMargin } from "./chart-geometry";
 import type { jsPDF } from "jspdf";
 import type { CellHookData } from "jspdf-autotable";
+// Type-only: formatNumber/formatDate are derived from next-intl's own
+// formatter rather than hand-rolled against Intl.NumberFormatOptions/
+// Intl.DateTimeFormatOptions, whose option types are narrower per-field
+// than the general Intl ones (see results.ts for the full rationale).
+// Erased at build time, so no runtime dependency -- t stays fully
+// hand-rolled below since plain string keys/values don't hit the same
+// narrowing issue. The calling component (which does have hook access)
+// builds a ReportI18n via thin adapter closures around
+// useTranslations()/useFormatter().
+import type { useFormatter } from "next-intl";
+
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+type NumberFormatter = ReturnType<typeof useFormatter>["number"];
+type DateFormatter = ReturnType<typeof useFormatter>["dateTime"];
+export type ReportI18n = { t: Translate; formatNumber: NumberFormatter; formatDate: DateFormatter };
 
 export type CurrencyCode = "NONE" | "USD" | "EUR" | "GBP" | "JPY" | "BRL" | "CAD" | "AUD" | "CHF" | "CNY" | "INR" | "MXN" | "ARS" | "KRW" | "SEK" | "NOK" | "NZD";
 
-export type CurrencyOption = { code: CurrencyCode; label: string; symbol: string };
+export type CurrencyOption = { code: CurrencyCode; symbol: string };
 
 // Symbols are restricted to characters the PDF's built-in fonts can
 // actually render (WinAnsi/CP1252) -- e.g. no rupee or won sign -- so a
 // plain ISO-code prefix stands in wherever there's no safe single glyph.
 export const CURRENCY_OPTIONS: CurrencyOption[] = [
-  { code: "NONE", label: "No currency (plain numbers)", symbol: "" },
-  { code: "USD", label: "US Dollar (USD)", symbol: "$" },
-  { code: "EUR", label: "Euro (EUR)", symbol: "€" },
-  { code: "GBP", label: "British Pound (GBP)", symbol: "£" },
-  { code: "JPY", label: "Japanese Yen (JPY)", symbol: "¥" },
-  { code: "BRL", label: "Brazilian Real (BRL)", symbol: "R$" },
-  { code: "CAD", label: "Canadian Dollar (CAD)", symbol: "C$" },
-  { code: "AUD", label: "Australian Dollar (AUD)", symbol: "A$" },
-  { code: "CHF", label: "Swiss Franc (CHF)", symbol: "CHF " },
-  { code: "CNY", label: "Chinese Yuan (CNY)", symbol: "CN¥" },
-  { code: "INR", label: "Indian Rupee (INR)", symbol: "INR " },
-  { code: "MXN", label: "Mexican Peso (MXN)", symbol: "MX$" },
-  { code: "ARS", label: "Argentine Peso (ARS)", symbol: "AR$" },
-  { code: "KRW", label: "South Korean Won (KRW)", symbol: "KRW " },
-  { code: "SEK", label: "Swedish Krona (SEK)", symbol: "SEK " },
-  { code: "NOK", label: "Norwegian Krone (NOK)", symbol: "NOK " },
-  { code: "NZD", label: "New Zealand Dollar (NZD)", symbol: "NZ$" },
+  { code: "NONE", symbol: "" },
+  { code: "USD", symbol: "$" },
+  { code: "EUR", symbol: "€" },
+  { code: "GBP", symbol: "£" },
+  { code: "JPY", symbol: "¥" },
+  { code: "BRL", symbol: "R$" },
+  { code: "CAD", symbol: "C$" },
+  { code: "AUD", symbol: "A$" },
+  { code: "CHF", symbol: "CHF " },
+  { code: "CNY", symbol: "CN¥" },
+  { code: "INR", symbol: "INR " },
+  { code: "MXN", symbol: "MX$" },
+  { code: "ARS", symbol: "AR$" },
+  { code: "KRW", symbol: "KRW " },
+  { code: "SEK", symbol: "SEK " },
+  { code: "NOK", symbol: "NOK " },
+  { code: "NZD", symbol: "NZ$" },
 ];
+
+export function currencyOptionLabel(t: Translate, option: CurrencyOption): string {
+  return t(`pdfReport.currency.${option.code.toLowerCase()}`);
+}
 
 // Inserts the currency symbol right after a leading sign character (if
 // any) rather than in front of it, so a signed value reads "+R$100.00"
@@ -103,14 +122,14 @@ function drawBulletLine(doc: jsPDF, x: number, y: number, label: string, value: 
 // point belongs, even though one renders to SVG and the other to PDF
 // vector paths directly (no rasterization, so it stays crisp at any zoom
 // or print size). Returns the Y position just below whatever was drawn.
-function drawChart(doc: jsPDF, sources: ProjectSource[], originX: number, originY: number, width: number, height: number, margin: ChartMargin, regionLaneHeight: number, markerRadius: number, showLegend: boolean): number {
+function drawChart(doc: jsPDF, sources: ProjectSource[], originX: number, originY: number, width: number, height: number, margin: ChartMargin, regionLaneHeight: number, markerRadius: number, showLegend: boolean, t: Translate, formatNumber: NumberFormatter, formatDate: DateFormatter): number {
   const layout = computeChartLayout(sources, width, height, margin, regionLaneHeight);
 
   if (!layout) {
     doc.setFont(FONT, "italic");
     doc.setFontSize(9);
     doc.setTextColor(150, 150, 150);
-    doc.text("No data to display.", originX, originY + 5);
+    doc.text(t("pdfReport.noData"), originX, originY + 5);
     doc.setTextColor(0, 0, 0);
     doc.setFont(FONT, "normal");
     return originY + 10;
@@ -135,10 +154,10 @@ function drawChart(doc: jsPDF, sources: ProjectSource[], originX: number, origin
   doc.setFontSize(7);
   doc.setTextColor(107, 114, 128);
   for (const tick of yTicks) {
-    doc.text(formatAxisValue(tick), X(grownMargin.left - 2), Y(yForValue(tick)), { align: "right", baseline: "middle" });
+    doc.text(formatAxisValue(tick, formatNumber), X(grownMargin.left - 2), Y(yForValue(tick)), { align: "right", baseline: "middle" });
   }
-  for (const t of tickTimes) {
-    doc.text(formatAxisDate(t), X(xForTime(t)), Y(height - grownMargin.bottom + 5), { align: "center" });
+  for (const tickTime of tickTimes) {
+    doc.text(formatAxisDate(tickTime, formatDate), X(xForTime(tickTime)), Y(height - grownMargin.bottom + 5), { align: "center" });
   }
 
   doc.setFontSize(6);
@@ -156,7 +175,7 @@ function drawChart(doc: jsPDF, sources: ProjectSource[], originX: number, origin
     doc.setLineDashPattern([1, 0.7], 0);
     doc.line(X(x1), Y(laneY), X(x2), Y(laneY));
     doc.setLineDashPattern([], 0);
-    doc.text(`${REGION_LABEL[region.kind]} ${PDF_DIRECTION_ARROW[region.direction]}`, X(x1), Y(laneY - 1));
+    doc.text(`${regionLabel(t, region.kind)} ${PDF_DIRECTION_ARROW[region.direction]}`, X(x1), Y(laneY - 1));
   });
 
   points.forEach((point) => {
@@ -204,7 +223,12 @@ type TocEntry = { title: string; page: number; indent?: boolean };
 // function rather than imported at the top of the file -- this page still
 // gets rendered once on the server for the initial HTML, and only the
 // actual PDF build (triggered by a click) needs to happen in the browser.
-export async function generateProjectReportPdf(project: Project, config: ReportConfig): Promise<Blob> {
+//
+// i18n is threaded in from the calling component (which has hook access to
+// next-intl) rather than called from here directly -- this module stays a
+// plain function with no dependency on next-intl's types.
+export async function generateProjectReportPdf(project: Project, config: ReportConfig, i18n: ReportI18n): Promise<Blob> {
+  const { t, formatNumber, formatDate } = i18n;
   const { default: JsPdfCtor } = await import("jspdf");
   // The plugin's typed default export returns void, so the finalY of the
   // drawn table (needed to know where to place the next section) isn't
@@ -222,7 +246,7 @@ export async function generateProjectReportPdf(project: Project, config: ReportC
   const currencySymbol = CURRENCY_OPTIONS.find((option) => option.code === config.currency)?.symbol ?? "";
 
   function formatCell(column: ResultColumn, result: ReturnType<typeof computeResults>[number]): string {
-    const formatted = column.formatValue(result);
+    const formatted = column.formatValue(result, { number: formatNumber, dateTime: formatDate });
     return column.isMonetary ? applyCurrencySymbol(formatted, currencySymbol) : formatted;
   }
 
@@ -244,7 +268,7 @@ export async function generateProjectReportPdf(project: Project, config: ReportC
   doc.setFont(FONT, "italic");
   doc.setFontSize(10);
   doc.setTextColor(120, 120, 120);
-  doc.text(`Generated on ${new Date().toLocaleDateString()}`, PAGE_MARGIN, y + 16);
+  doc.text(t("pdfReport.generatedOn", { date: formatDate(new Date()) }), PAGE_MARGIN, y + 16);
   doc.setTextColor(0, 0, 0);
   doc.setFont(FONT, "normal");
   y += 22;
@@ -275,14 +299,14 @@ export async function generateProjectReportPdf(project: Project, config: ReportC
       doc.addPage();
       y = PAGE_MARGIN;
     }
-    tocEntries.push({ title: "Summary Table", page: doc.getNumberOfPages() });
-    drawSectionHeading(doc, "Summary Table", PAGE_MARGIN, y);
+    tocEntries.push({ title: t("pdfReport.summaryTable"), page: doc.getNumberOfPages() });
+    drawSectionHeading(doc, t("pdfReport.summaryTable"), PAGE_MARGIN, y);
     y += 8;
 
     const results = computeResults(includedSources);
     const tableColumns = [
-      { header: "Source", dataKey: "source" },
-      ...columns.map((column) => ({ header: column.label, dataKey: column.key })),
+      { header: t("resultsTable.sourceColumn"), dataKey: "source" },
+      ...columns.map((column) => ({ header: resultColumnLabel(t, column), dataKey: column.key })),
     ];
     const tableBody = results.map((result) => {
       const row: Record<string, string> = { source: result.name };
@@ -319,10 +343,10 @@ export async function generateProjectReportPdf(project: Project, config: ReportC
       doc.addPage();
       y = PAGE_MARGIN;
     }
-    tocEntries.push({ title: "Chart", page: doc.getNumberOfPages() });
-    drawSectionHeading(doc, "Chart", PAGE_MARGIN, y);
+    tocEntries.push({ title: t("pdfReport.chart"), page: doc.getNumberOfPages() });
+    drawSectionHeading(doc, t("pdfReport.chart"), PAGE_MARGIN, y);
     y += 7;
-    y = drawChart(doc, includedSources, PAGE_MARGIN, y, contentWidth, chartHeight, CHART_MARGIN, REGION_LANE_HEIGHT, 1.1, true);
+    y = drawChart(doc, includedSources, PAGE_MARGIN, y, contentWidth, chartHeight, CHART_MARGIN, REGION_LANE_HEIGHT, 1.1, true, t, formatNumber, formatDate);
     y += 8;
     drawDivider(doc, PAGE_MARGIN, y, contentWidth);
     y += 12;
@@ -338,8 +362,8 @@ export async function generateProjectReportPdf(project: Project, config: ReportC
       doc.addPage();
       y = PAGE_MARGIN;
     }
-    tocEntries.push({ title: "Source Summaries", page: doc.getNumberOfPages() });
-    drawSectionHeading(doc, "Source Summaries", PAGE_MARGIN, y);
+    tocEntries.push({ title: t("pdfReport.sourceSummaries"), page: doc.getNumberOfPages() });
+    drawSectionHeading(doc, t("pdfReport.sourceSummaries"), PAGE_MARGIN, y);
     y += 10;
 
     includedSources.forEach((source, index) => {
@@ -361,15 +385,15 @@ export async function generateProjectReportPdf(project: Project, config: ReportC
 
       doc.setFontSize(10);
       for (const column of columns) {
-        drawBulletLine(doc, PAGE_MARGIN + 3, y, column.label, formatCell(column, result));
+        drawBulletLine(doc, PAGE_MARGIN + 3, y, resultColumnLabel(t, column), formatCell(column, result));
         y += 5.5;
       }
 
       doc.setFont(FONT, "italic");
-      doc.text("• Looks like:", PAGE_MARGIN + 3, y);
+      doc.text(`• ${t("pdfReport.looksLike")}`, PAGE_MARGIN + 3, y);
       doc.setFont(FONT, "normal");
       y += 4;
-      y = drawChart(doc, [source], PAGE_MARGIN + 5, y, contentWidth - 10, MINI_CHART_HEIGHT, MINI_CHART_MARGIN, MINI_REGION_LANE_HEIGHT, 0.7, false);
+      y = drawChart(doc, [source], PAGE_MARGIN + 5, y, contentWidth - 10, MINI_CHART_HEIGHT, MINI_CHART_MARGIN, MINI_REGION_LANE_HEIGHT, 0.7, false, t, formatNumber, formatDate);
       y += 8;
 
       if (index < includedSources.length - 1) {
@@ -381,7 +405,7 @@ export async function generateProjectReportPdf(project: Project, config: ReportC
 
   if (tocPageNumber !== null) {
     doc.setPage(tocPageNumber);
-    drawSectionHeading(doc, "Table of Contents", PAGE_MARGIN, tocHeadingY);
+    drawSectionHeading(doc, t("pdfReport.tableOfContents"), PAGE_MARGIN, tocHeadingY);
 
     let tocY = tocEntriesY;
     for (const entry of tocEntries) {

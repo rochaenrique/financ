@@ -45,25 +45,40 @@ export function computeResults(sources: ProjectSource[]): SourceResult[] {
   }));
 }
 
-export function formatResultNumber(value: number): string {
-  return value.toFixed(2);
+// Derived (type-only) from next-intl's own formatter rather than hand-rolled
+// against Intl.NumberFormatOptions/Intl.DateTimeFormatOptions -- next-intl's
+// option types are narrower than the general Intl ones (e.g. stricter
+// per-field literal unions), so a hand-rolled structural type accepted
+// option values the real formatter would reject. This import is type-only
+// (erased at build time), so it doesn't add a runtime/bundle dependency on
+// next-intl -- only Translate below stays fully hand-rolled, since plain
+// string keys/values don't hit the same narrowing issue.
+import type { useFormatter } from "next-intl";
+type NumberFormatter = ReturnType<typeof useFormatter>["number"];
+type DateFormatter = ReturnType<typeof useFormatter>["dateTime"];
+export type ResultFormat = { number: NumberFormatter; dateTime: DateFormatter };
+
+export function formatResultNumber(value: number, formatNumber: NumberFormatter): string {
+  return formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function formatResultSigned(value: number): string {
-  if (value === 0) return "0";
-  return `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
+export function formatResultSigned(value: number, formatNumber: NumberFormatter): string {
+  return formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" });
 }
 
-export function formatResultDate(date: Date): string {
-  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+export function formatResultDate(date: Date, formatDate: DateFormatter): string {
+  return formatDate(date, { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export type ColumnKey = "raw" | "comparedRaw" | "vam" | "comparedVam" | "correction" | "itemCount" | "dateRange";
 
 export type ResultColumn = {
   key: ColumnKey;
-  label: string;
-  title?: string;
+  // Suffix under the `resultsTable.columns.*` message namespace for this
+  // column's tooltip text -- only set for columns that have one. The
+  // column's own label always lives at `resultsTable.columns.<key>`, so no
+  // separate labelKey field is needed.
+  titleKey?: string;
   defaultVisible: boolean;
   // Whether the on-screen table renders this column's value in muted
   // (secondary) text -- purely presentational, but kept alongside the
@@ -74,18 +89,32 @@ export type ResultColumn = {
   // this to decide which columns get the chosen currency symbol; Items and
   // Date Range never do.
   isMonetary?: boolean;
-  formatValue: (r: SourceResult) => string;
+  formatValue: (r: SourceResult, format: ResultFormat) => string;
 };
 
 // The canonical set of per-source metrics: what the interactive results
 // table lets you toggle, and what the PDF report's column picker offers.
 // Keeping this in one place means the two can never drift apart.
 export const RESULT_COLUMNS: ResultColumn[] = [
-  { key: "raw", label: "Raw", title: "Sum of raw values, ignoring any simple/compound-index correction", defaultVisible: true, muted: true, isMonetary: true, formatValue: (r) => formatResultNumber(r.raw) },
-  { key: "comparedRaw", label: "Raw Comparado", title: "Raw total compared to the lowest Raw among sources", defaultVisible: false, muted: true, isMonetary: true, formatValue: (r) => formatResultSigned(r.comparedRaw) },
-  { key: "vam", label: "VAM", defaultVisible: true, isMonetary: true, formatValue: (r) => formatResultNumber(r.vam) },
-  { key: "comparedVam", label: "VAM Comparado", defaultVisible: true, isMonetary: true, formatValue: (r) => formatResultSigned(r.comparedVam) },
-  { key: "correction", label: "Correction", title: "VAM minus Raw — the net effect of index correction", defaultVisible: false, isMonetary: true, formatValue: (r) => formatResultSigned(r.correction) },
-  { key: "itemCount", label: "Items", defaultVisible: false, formatValue: (r) => String(r.itemCount) },
-  { key: "dateRange", label: "Date Range", defaultVisible: false, formatValue: (r) => r.dateStart && r.dateEnd ? `${formatResultDate(r.dateStart)} → ${formatResultDate(r.dateEnd)}` : "—" },
+  { key: "raw", titleKey: "rawTitle", defaultVisible: true, muted: true, isMonetary: true, formatValue: (r, f) => formatResultNumber(r.raw, f.number) },
+  { key: "comparedRaw", titleKey: "comparedRawTitle", defaultVisible: false, muted: true, isMonetary: true, formatValue: (r, f) => formatResultSigned(r.comparedRaw, f.number) },
+  { key: "vam", defaultVisible: true, isMonetary: true, formatValue: (r, f) => formatResultNumber(r.vam, f.number) },
+  { key: "comparedVam", defaultVisible: true, isMonetary: true, formatValue: (r, f) => formatResultSigned(r.comparedVam, f.number) },
+  { key: "correction", titleKey: "correctionTitle", defaultVisible: false, isMonetary: true, formatValue: (r, f) => formatResultSigned(r.correction, f.number) },
+  { key: "itemCount", defaultVisible: false, formatValue: (r) => String(r.itemCount) },
+  { key: "dateRange", defaultVisible: false, formatValue: (r, f) => r.dateStart && r.dateEnd ? `${formatResultDate(r.dateStart, f.dateTime)} → ${formatResultDate(r.dateEnd, f.dateTime)}` : "—" },
 ];
+
+// t is a minimal structural subset of next-intl's translator (just the
+// plain callable form) so this module doesn't need to depend on next-intl's
+// types -- any translator-shaped function works, including the thin
+// adapters passed into the PDF report generator.
+type Translate = (key: string) => string;
+
+export function resultColumnLabel(t: Translate, column: ResultColumn): string {
+  return t(`resultsTable.columns.${column.key}`);
+}
+
+export function resultColumnTitle(t: Translate, column: ResultColumn): string | undefined {
+  return column.titleKey ? t(`resultsTable.columns.${column.titleKey}`) : undefined;
+}

@@ -2,9 +2,10 @@
 
 import { useState } from "react"
 import { ArrowUp, ArrowDown } from "lucide-react"
+import { useTranslations, useFormatter } from "next-intl"
 
 import type { ProjectSource } from "@/lib/projects"
-import { RESULT_COLUMNS, computeResults, type ColumnKey, type SourceResult } from "@/lib/results"
+import { RESULT_COLUMNS, computeResults, resultColumnLabel, resultColumnTitle, type ColumnKey, type ResultFormat, type SourceResult } from "@/lib/results"
 import { cn } from "@/lib/utils"
 
 type Props = { sources: ProjectSource[] };
@@ -56,6 +57,9 @@ function SortableHeader({ label, sortKey, sort, onSort, title, align = "right" }
 }
 
 export function ResultsTable({ sources }: Props) {
+  const t = useTranslations();
+  const format = useFormatter();
+  const resultFormat: ResultFormat = { number: format.number, dateTime: format.dateTime };
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => new Set(RESULT_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key)));
   const [sort, setSort] = useState<Sort | null>(null);
 
@@ -92,11 +96,11 @@ export function ResultsTable({ sources }: Props) {
 
   return (
           <div className="flex h-full flex-col">
-          <h2 className="mb-2 text-center text-2xl font-semibold">Resultados</h2>
+          <h2 className="mb-2 text-center text-2xl font-semibold">{t("resultsTable.heading")}</h2>
 
           {results.length === 0 ? (
                                    <div className="min-h-0 flex-1 overflow-auto rounded-sm border bg-background">
-                                   <p className="p-4 text-center text-sm text-muted-foreground">No sources to compare yet.</p>
+                                   <p className="p-4 text-center text-sm text-muted-foreground">{t("resultsTable.emptyState")}</p>
                                    </div>
                                    ) : (
                                         <>
@@ -106,7 +110,7 @@ export function ResultsTable({ sources }: Props) {
                                                                     key={column.key}
                                                                     type="button"
                                                                     onClick={() => toggleColumn(column.key)}
-                                                                    title={column.title}
+                                                                    title={resultColumnTitle(t, column)}
                                                                     className={cn(
                                                                                   "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                                                                                   visibleColumns.has(column.key)
@@ -114,7 +118,7 @@ export function ResultsTable({ sources }: Props) {
                                                                                   : "border-border bg-background text-muted-foreground hover:bg-muted"
                                                                                   )}
                                                                     >
-                                                                    {column.label}
+                                                                    {resultColumnLabel(t, column)}
                                                                     </button>
                                                                     ))}
                                         </div>
@@ -123,9 +127,9 @@ export function ResultsTable({ sources }: Props) {
                                         <table className="w-full border-collapse text-sm">
                                         <thead>
                                         <tr className="border-b">
-                                        <SortableHeader label="Fonte" sortKey="name" sort={sort} onSort={handleSort} align="left" />
+                                        <SortableHeader label={t("resultsTable.sourceColumn")} sortKey="name" sort={sort} onSort={handleSort} align="left" />
                                         {shownColumns.map((column) => (
-                                                                       <SortableHeader key={column.key} label={column.label} sortKey={column.key} sort={sort} onSort={handleSort} title={column.title} />
+                                                                       <SortableHeader key={column.key} label={resultColumnLabel(t, column)} sortKey={column.key} sort={sort} onSort={handleSort} title={resultColumnTitle(t, column)} />
                                                                        ))}
                                         </tr>
                                         </thead>
@@ -136,7 +140,7 @@ export function ResultsTable({ sources }: Props) {
                                                                        <td className="px-4 py-2 font-semibold">{result.name}</td>
                                                                        {shownColumns.map((column) => (
                                                                                                       <td key={column.key} className="px-2 py-2 text-right">
-                                                                                                      <span className={column.muted ? "text-muted-foreground" : undefined}>{column.formatValue(result)}</span>
+                                                                                                      <span className={column.muted ? "text-muted-foreground" : undefined}>{column.formatValue(result, resultFormat)}</span>
                                                                                                       </td>
                                                                                                       ))}
                                                                        </tr>

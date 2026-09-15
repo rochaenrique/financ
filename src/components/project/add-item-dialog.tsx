@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useTranslations, useFormatter } from "next-intl";
 import { ArrowLeft, FileText, Plus, Table2, Trash2 } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,7 +12,7 @@ import { getSourceDateRange, isSourceDateRef } from "@/lib/projects";
 import { getItemsFromDatasets } from "@/lib/pdf-datasets";
 import { cn, toDate } from "@/lib/utils";
 import type { PdfSelectedDataset } from "@/components/project/pdf-import-dialog";
-import { ItemIcon } from "@/components/project/item-icon";
+import { ItemIcon, TYPE_MESSAGE_KEY } from "@/components/project/item-icon";
 
 const PdfImportDialog = dynamic(() => import("@/components/project/pdf-import-dialog").then((module) => module.PdfImportDialog), { ssr: false });
 
@@ -32,24 +33,19 @@ type ScheduleKind = ProjectItemSchedule["kind"];
 type PdfResultType = "timed-values" | "index-series";
 type Step = { kind: "picker" } | { kind: "manual"; itemType: ManualItemType } | { kind: "index-series-direction" } | { kind: "pdf"; resultType: PdfResultType } | { kind: "timed-values-method" } | { kind: "table"; resultType: PdfResultType };
 
-const TYPE_OPTIONS: { type: ProjectItemData["type"]; label: string; description: string }[] = [
-                                                                                               { type: "timed-values", label: "Time Series", description: "Import from a PDF or enter values by hand, like a payment schedule." },
-                                                                                               { type: "index-series", label: "Index Series", description: "Import a researched index (e.g. inflation) from a PDF, to correct other items in this source." },
-                                                                                               { type: "compound-index", label: "Compound Index", description: "A single rate that compounds over a repeating schedule." },
-                                                                                               { type: "simple-index", label: "Simple Index", description: "A single non-compounding rate or percentage applied on a schedule." },
-                                                                                               { type: "fixed-value", label: "Fixed Value", description: "A constant value applied on a schedule." },
-                                                                                               ];
-
-const MANUAL_TYPE_LABELS: Record<ManualItemType, string> = { "compound-index": "Compound Index", "simple-index": "Simple Index", "fixed-value": "Fixed Value" };
-const FREQUENCY_LABELS: Record<FrequencyUnit, string> = { days: "days", weeks: "weeks", months: "months", years: "years" };
-const FREQUENCY_SINGULAR: Record<FrequencyUnit, string> = { days: "day", weeks: "week", months: "month", years: "year" };
+const TYPE_OPTIONS: ProjectItemData["type"][] = ["timed-values", "index-series", "compound-index", "simple-index", "fixed-value"];
 
 function todayInputValue(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function formatPreviewDate(date: Date): string {
-  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+// Derived from next-intl's own formatter rather than hand-rolled against
+// Intl.DateTimeFormatOptions, whose option types are narrower per-field
+// than the general Intl ones (see results.ts for the full rationale).
+type DateFormatter = ReturnType<typeof useFormatter>["dateTime"];
+
+function formatPreviewDate(date: Date, formatDate: DateFormatter): string {
+  return formatDate(date, { day: "2-digit", month: "short", year: "numeric" });
 }
 
 type DateMode = "custom" | "source";
@@ -172,23 +168,26 @@ function DateRefField({ label, mode, onModeChange, value, onValueChange, sourceD
   sourceDate: Date | null;
   sourceLabel: string;
 }) {
+  const t = useTranslations();
+  const format = useFormatter();
   return (
           <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium">{label}</label>
           {mode === "custom" ? (
                                <input type="date" value={value} onChange={(e) => onValueChange(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
                                ) : (
-                                    <div className="flex h-[38px] w-full items-center rounded-md border bg-muted px-3 text-sm text-muted-foreground">{sourceDate ? formatPreviewDate(sourceDate) : "—"}</div>
+                                    <div className="flex h-[38px] w-full items-center rounded-md border bg-muted px-3 text-sm text-muted-foreground">{sourceDate ? formatPreviewDate(sourceDate, format.dateTime) : t("common.noValue")}</div>
                                     )}
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <input type="checkbox" checked={mode === "source"} disabled={!sourceDate && mode !== "source"} onChange={(e) => onModeChange(e.target.checked ? "source" : "custom")} />
-          {sourceLabel}{!sourceDate && (mode === "source" ? " (no longer resolves — pick a date or uncheck)" : " (no dated items in this source yet)")}
+          {sourceLabel}{!sourceDate && (mode === "source" ? t("addItemDialog.dateRefUnresolved") : t("addItemDialog.dateRefNoData"))}
           </label>
           </div>
           );
 }
 
 export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allowEmpty = false, source = null, editingItem = null }: Props) {
+  const t = useTranslations();
   const initial = initialFormState(editingItem);
   const [step, setStep] = useState<Step>(initial.step);
   const [value, setValue] = useState(initial.value);
@@ -351,7 +350,9 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
   }
 
   const isManualValid = step.kind === "manual" && value.trim() !== "" && Number.isFinite(Number(value)) && Number.isInteger(Number(frequencyEvery)) && Number(frequencyEvery) > 0 && ((scheduleKind === "count" && resolvedReferenceDate !== null && Number.isInteger(Number(occurrences)) && Number(occurrences) > 0) || (scheduleKind === "range" && resolvedRangeStart !== null && resolvedRangeEnd !== null && resolvedRangeStart <= resolvedRangeEnd) || (scheduleKind === "entire" && referenceDate !== ""));
-  const frequencyDescription = frequencyUnit === "days" ? "Anchored by the reference date." : frequencyUnit === "weeks" ? "Anchored by the weekday of the reference date." : frequencyUnit === "months" ? "Anchored by the day of the month of the reference date." : "Anchored by the month and day of the reference date.";
+  const frequencyDescription = t(`addItemDialog.manual.frequencyAnchor.${frequencyUnit}`);
+  const frequencyCount = Number(frequencyEvery) || 1;
+  const frequencyCountDisplay = Number(frequencyEvery) > 0 ? frequencyEvery : "X";
 
   return (
           <>
@@ -359,14 +360,14 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
           <DialogContent className={cn("sm:max-w-lg", step.kind === "table" && "flex max-h-[85vh] w-full flex-col overflow-hidden")}>
           {step.kind === "picker" && (
                                       <>
-                                      <DialogHeader><DialogTitle>Add item</DialogTitle><DialogDescription>Choose what kind of data you want to add to this source.</DialogDescription></DialogHeader>
+                                      <DialogHeader><DialogTitle>{t("addItemDialog.picker.title")}</DialogTitle><DialogDescription>{t("addItemDialog.picker.description")}</DialogDescription></DialogHeader>
                                       <div className="grid grid-cols-2 gap-3 pt-2">
-                                      {TYPE_OPTIONS.map((option) => <button key={option.type} type="button" onClick={() => handlePickType(option.type)} className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left hover:border-primary hover:bg-muted/30"><ItemIcon type={option.type} /><span className="text-sm font-semibold">{option.label}</span><span className="text-xs text-muted-foreground">{option.description}</span></button>)}
+                                      {TYPE_OPTIONS.map((type) => <button key={type} type="button" onClick={() => handlePickType(type)} className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left hover:border-primary hover:bg-muted/30"><ItemIcon type={type} /><span className="text-sm font-semibold">{t(`addItemDialog.types.${TYPE_MESSAGE_KEY[type]}.label`)}</span><span className="text-xs text-muted-foreground">{t(`addItemDialog.types.${TYPE_MESSAGE_KEY[type]}.description`)}</span></button>)}
 
                                       {allowEmpty && (
                                                       <button type="button" onClick={() => { onAddItems([]); handleOpenChange(false); }} className="col-span-2 rounded-lg border border-dashed p-4 text-left hover:border-primary hover:bg-muted/30">
-                                                      <span className="text-sm font-semibold">Empty source</span>
-                                                      <span className="mt-1 block text-xs text-muted-foreground">Create the source now and add items later.</span>
+                                                      <span className="text-sm font-semibold">{t("addItemDialog.picker.emptySource.title")}</span>
+                                                      <span className="mt-1 block text-xs text-muted-foreground">{t("addItemDialog.picker.emptySource.description")}</span>
                                                       </button>
                                                       )}
                                       </div>
@@ -375,42 +376,42 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
 
           {step.kind === "timed-values-method" && (
                                                      <>
-                                                     <DialogHeader><DialogTitle>Add Time Series</DialogTitle><DialogDescription>How do you want to enter the data?</DialogDescription></DialogHeader>
+                                                     <DialogHeader><DialogTitle>{t("addItemDialog.timedValuesMethod.title")}</DialogTitle><DialogDescription>{t("addItemDialog.timedValuesMethod.description")}</DialogDescription></DialogHeader>
                                                      <div className="grid grid-cols-2 gap-3 pt-2">
                                                      <button type="button" onClick={() => setStep({ kind: "pdf", resultType: "timed-values" })} className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left hover:border-primary hover:bg-muted/30">
                                                      <FileText className="h-4 w-4" />
-                                                     <span className="text-sm font-semibold">Import from PDF</span>
-                                                     <span className="text-xs text-muted-foreground">Pick columns from a parsed PDF table.</span>
+                                                     <span className="text-sm font-semibold">{t("addItemDialog.timedValuesMethod.importFromPdf.title")}</span>
+                                                     <span className="text-xs text-muted-foreground">{t("addItemDialog.timedValuesMethod.importFromPdf.description")}</span>
                                                      </button>
                                                      <button type="button" onClick={handleStartManualTable} className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left hover:border-primary hover:bg-muted/30">
                                                      <Table2 className="h-4 w-4" />
-                                                     <span className="text-sm font-semibold">Enter manually</span>
-                                                     <span className="text-xs text-muted-foreground">Type in each date and value by hand.</span>
+                                                     <span className="text-sm font-semibold">{t("addItemDialog.timedValuesMethod.enterManually.title")}</span>
+                                                     <span className="text-xs text-muted-foreground">{t("addItemDialog.timedValuesMethod.enterManually.description")}</span>
                                                      </button>
                                                      </div>
-                                                     <DialogFooter className="pt-2"><Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button></DialogFooter>
+                                                     <DialogFooter className="pt-2"><Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />{t("common.back")}</Button></DialogFooter>
                                                      </>
                                                      )}
 
           {step.kind === "table" && (
                                       <>
                                       <DialogHeader className="shrink-0">
-                                      <DialogTitle>{editingItem ? "Edit" : "Add"} {step.resultType === "index-series" ? "Index Series" : "Time Series"}</DialogTitle>
-                                      <DialogDescription>Enter each date and value by hand. A row needs both to count.</DialogDescription>
+                                      <DialogTitle>{t(editingItem ? "common.edit" : "common.add")} {t(`addItemDialog.types.${step.resultType === "index-series" ? "indexSeries" : "timedValues"}.label`)}</DialogTitle>
+                                      <DialogDescription>{t("addItemDialog.table.description")}</DialogDescription>
                                       </DialogHeader>
                                       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pt-2">
                                       {step.resultType === "index-series" && (
                                                                              <div className="flex shrink-0 flex-col gap-2">
-                                                                             <label className="text-sm font-medium">Settle to</label>
+                                                                             <label className="text-sm font-medium">{t("addItemDialog.settleTo")}</label>
                                                                              <select value={direction} onChange={(e) => setDirection(e.target.value as IndexDirection)} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-                                                                             <option value="future">Latest reading (future value)</option>
-                                                                             <option value="past">Earliest reading (present value)</option>
+                                                                             <option value="future">{t("addItemDialog.readingDirection.futureOption")}</option>
+                                                                             <option value="past">{t("addItemDialog.readingDirection.pastOption")}</option>
                                                                              </select>
                                                                              </div>
                                                                              )}
                                       <div className="flex shrink-0 gap-2 px-0.5 text-xs font-medium text-muted-foreground">
-                                      <span className="flex-1">Date</span>
-                                      <span className="flex-1">Value</span>
+                                      <span className="flex-1">{t("addItemDialog.table.dateColumn")}</span>
+                                      <span className="flex-1">{t("addItemDialog.table.valueColumn")}</span>
                                       <span className="w-8 shrink-0" />
                                       </div>
                                       <div className="scrollbar-visible flex min-h-[180px] flex-1 flex-col gap-2 overflow-y-auto pr-1">
@@ -424,107 +425,107 @@ export function AddItemDialog({ open, onOpenChange, onAddItems, onEditItem, allo
                                                                  value={row.value}
                                                                  onChange={(e) => updateTableRow(row.id, { value: e.target.value })}
                                                                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTableRow(); } }}
-                                                                 placeholder="0.00"
+                                                                 placeholder={t("addItemDialog.table.valuePlaceholder")}
                                                                  className="w-full flex-1 rounded-md border bg-background px-3 py-2 text-sm"
                                                                  />
                                                                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => removeTableRow(row.id)}>
                                                                  <Trash2 className="h-4 w-4" />
-                                                                 <span className="sr-only">Remove row</span>
+                                                                 <span className="sr-only">{t("addItemDialog.table.removeRowSr")}</span>
                                                                  </Button>
                                                                  </div>
                                                                  ))}
-                                      {tableRows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No rows yet.</p>}
+                                      {tableRows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">{t("addItemDialog.table.noRowsYet")}</p>}
                                       </div>
                                       <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
                                       <input type="checkbox" checked={autoIncrementMonth} onChange={(e) => setAutoIncrementMonth(e.target.checked)} className="h-3.5 w-3.5 cursor-pointer accent-primary" />
-                                      Advance new rows by 1 month
+                                      {t("addItemDialog.table.advanceRows")}
                                       </label>
                                       <Button type="button" variant="outline" onClick={addTableRow} className="shrink-0">
-                                      <Plus className="mr-2 h-4 w-4" />Add row
+                                      <Plus className="mr-2 h-4 w-4" />{t("addItemDialog.table.addRow")}
                                       </Button>
-                                      <p className="shrink-0 text-xs text-muted-foreground">{parsedTableRows.length} of {tableRows.length} row{tableRows.length === 1 ? "" : "s"} usable.</p>
+                                      <p className="shrink-0 text-xs text-muted-foreground">{t("addItemDialog.table.rowsUsable", { usable: parsedTableRows.length, total: tableRows.length })}</p>
                                       </div>
                                       <DialogFooter className="shrink-0 pt-2">
-                                      {editingItem ? <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>Cancel</Button> : <Button type="button" variant="ghost" onClick={() => setStep({ kind: "timed-values-method" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>}
-                                      <Button type="button" onClick={handleTableSubmit} disabled={parsedTableRows.length === 0}>{editingItem ? "Save changes" : "Add item"}</Button>
+                                      {editingItem ? <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>{t("common.cancel")}</Button> : <Button type="button" variant="ghost" onClick={() => setStep({ kind: "timed-values-method" })}><ArrowLeft className="mr-2 h-4 w-4" />{t("common.back")}</Button>}
+                                      <Button type="button" onClick={handleTableSubmit} disabled={parsedTableRows.length === 0}>{t(editingItem ? "addItemDialog.saveChanges" : "addItemDialog.addItem")}</Button>
                                       </DialogFooter>
                                       </>
                                       )}
 
           {step.kind === "manual" && (
                                       <>
-                                      <DialogHeader><DialogTitle>{editingItem ? "Edit" : "Add"} {MANUAL_TYPE_LABELS[step.itemType]}</DialogTitle><DialogDescription>Choose the value, frequency, and when the schedule applies.</DialogDescription></DialogHeader>
+                                      <DialogHeader><DialogTitle>{t(editingItem ? "common.edit" : "common.add")} {t(`addItemDialog.types.${TYPE_MESSAGE_KEY[step.itemType]}.label`)}</DialogTitle><DialogDescription>{t("addItemDialog.manual.description")}</DialogDescription></DialogHeader>
                                       <div className="flex flex-col gap-5 pt-2">
                                       <div className="flex flex-col gap-1.5">
-                                      <label className="text-sm font-medium">{step.itemType === "fixed-value" ? "Value" : "Rate"}</label>
+                                      <label className="text-sm font-medium">{step.itemType === "fixed-value" ? t("addItemDialog.manual.valueLabel") : t("addItemDialog.manual.rateLabel")}</label>
                                       <div className="relative">
                                       <input type="number" step="any" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" className={`w-full rounded-md border bg-background px-3 py-2 text-sm ${step.itemType === "fixed-value" ? "" : "pr-7"}`} />
                                       {step.itemType !== "fixed-value" && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>}
                                       </div>
-                                      {step.itemType !== "fixed-value" && <p className="text-xs text-muted-foreground">Rate per {FREQUENCY_SINGULAR[frequencyUnit]}, e.g. 5 means 5%.</p>}
+                                      {step.itemType !== "fixed-value" && <p className="text-xs text-muted-foreground">{t("addItemDialog.manual.ratePer", { unit: t(`frequency.${frequencyUnit}`, { count: 1 }) })}</p>}
                                       </div>
 
                                       {step.itemType !== "fixed-value" && (
                                                                             <div className="flex flex-col gap-2">
-                                                                            <label className="text-sm font-medium">Settle to</label>
+                                                                            <label className="text-sm font-medium">{t("addItemDialog.settleTo")}</label>
                                                                             <select value={direction} onChange={(e) => setDirection(e.target.value as IndexDirection)} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-                                                                            <option value="future">End of the period (future value)</option>
-                                                                            <option value="past">Start of the period (present value)</option>
+                                                                            <option value="future">{t("addItemDialog.periodDirection.futureOption")}</option>
+                                                                            <option value="past">{t("addItemDialog.periodDirection.pastOption")}</option>
                                                                             </select>
-                                                                            <p className="text-xs text-muted-foreground">{direction === "future" ? "Raw values grow forward to the end of the schedule below." : "Raw values discount back to the start of the schedule below — what they're worth on the first day."}</p>
+                                                                            <p className="text-xs text-muted-foreground">{direction === "future" ? t("addItemDialog.periodDirection.futureHint") : t("addItemDialog.periodDirection.pastHint")}</p>
                                                                             </div>
                                                                             )}
 
                                       <div className="rounded-lg border p-4">
-                                      <div className="mb-3 text-sm font-semibold">Frequency</div>
+                                      <div className="mb-3 text-sm font-semibold">{t("addItemDialog.manual.frequencyLabel")}</div>
                                       <div className="grid grid-cols-[1fr_1.4fr] gap-3">
-                                      <div className="flex flex-col gap-1.5"><label className="text-xs font-medium text-muted-foreground">Every</label><input type="number" min="1" step="1" value={frequencyEvery} onChange={(e) => setFrequencyEvery(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /></div>
-                                      <div className="flex flex-col gap-1.5"><label className="text-xs font-medium text-muted-foreground">Interval</label><select value={frequencyUnit} onChange={(e) => setFrequencyUnit(e.target.value as FrequencyUnit)} className="w-full rounded-md border bg-background px-3 py-2 text-sm"><option value="days">{Number(frequencyEvery) === 1 ? "day" : "days"}</option><option value="weeks">{Number(frequencyEvery) === 1 ? "week" : "weeks"}</option><option value="months">{Number(frequencyEvery) === 1 ? "month" : "months"}</option><option value="years">{Number(frequencyEvery) === 1 ? "year" : "years"}</option></select></div>
+                                      <div className="flex flex-col gap-1.5"><label className="text-xs font-medium text-muted-foreground">{t("addItemDialog.manual.everyLabel")}</label><input type="number" min="1" step="1" value={frequencyEvery} onChange={(e) => setFrequencyEvery(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /></div>
+                                      <div className="flex flex-col gap-1.5"><label className="text-xs font-medium text-muted-foreground">{t("addItemDialog.manual.intervalLabel")}</label><select value={frequencyUnit} onChange={(e) => setFrequencyUnit(e.target.value as FrequencyUnit)} className="w-full rounded-md border bg-background px-3 py-2 text-sm"><option value="days">{t("frequency.days", { count: frequencyCount })}</option><option value="weeks">{t("frequency.weeks", { count: frequencyCount })}</option><option value="months">{t("frequency.months", { count: frequencyCount })}</option><option value="years">{t("frequency.years", { count: frequencyCount })}</option></select></div>
                                       </div>
-                                      <p className="mt-2 text-xs text-muted-foreground">Every {Number(frequencyEvery) > 0 ? frequencyEvery : "X"} {FREQUENCY_LABELS[frequencyUnit]}. {frequencyDescription}</p>
+                                      <p className="mt-2 text-xs text-muted-foreground">{t("addItemDialog.manual.frequencySummary", { count: frequencyCountDisplay, unit: t(`frequency.${frequencyUnit}`, { count: frequencyCount }), description: frequencyDescription })}</p>
                                       </div>
 
                                       <div className="flex flex-col gap-2">
-                                      <label className="text-sm font-medium">Apply</label>
+                                      <label className="text-sm font-medium">{t("addItemDialog.manual.applyLabel")}</label>
                                       <select value={scheduleKind} onChange={(e) => setScheduleKind(e.target.value as ScheduleKind)} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-                                      <option value="count">X times starting on a reference date</option>
-                                      <option value="range">On this interval over a date range</option>
-                                      <option value="entire">On this interval for the entire time</option>
+                                      <option value="count">{t("addItemDialog.manual.applyCount")}</option>
+                                      <option value="range">{t("addItemDialog.manual.applyRange")}</option>
+                                      <option value="entire">{t("addItemDialog.manual.applyEntire")}</option>
                                       </select>
                                       </div>
 
                                       {scheduleKind === "count" && (
                                                                     <div className="grid grid-cols-2 gap-3">
-                                                                    <DateRefField label="Starting date" mode={referenceDateMode} onModeChange={setReferenceDateMode} value={referenceDate} onValueChange={setReferenceDate} sourceDate={sourceRange.start} sourceLabel="Start of source data" />
-                                                                    <div className="flex flex-col gap-1.5"><label className="text-sm font-medium">Occurrences</label><input type="number" min="1" step="1" value={occurrences} onChange={(e) => setOccurrences(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /></div>
+                                                                    <DateRefField label={t("addItemDialog.manual.startingDate")} mode={referenceDateMode} onModeChange={setReferenceDateMode} value={referenceDate} onValueChange={setReferenceDate} sourceDate={sourceRange.start} sourceLabel={t("addItemDialog.manual.startOfSourceData")} />
+                                                                    <div className="flex flex-col gap-1.5"><label className="text-sm font-medium">{t("addItemDialog.manual.occurrences")}</label><input type="number" min="1" step="1" value={occurrences} onChange={(e) => setOccurrences(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /></div>
                                                                     </div>
                                                                     )}
 
                                       {scheduleKind === "range" && (
                                                                     <div className="grid grid-cols-2 gap-3">
-                                                                    <DateRefField label="Range start" mode={rangeStartMode} onModeChange={setRangeStartMode} value={rangeStart} onValueChange={setRangeStart} sourceDate={sourceRange.start} sourceLabel="Start of source data" />
-                                                                    <DateRefField label="Range end" mode={rangeEndMode} onModeChange={setRangeEndMode} value={rangeEnd} onValueChange={setRangeEnd} sourceDate={sourceRange.end} sourceLabel="End of source data" />
+                                                                    <DateRefField label={t("addItemDialog.manual.rangeStart")} mode={rangeStartMode} onModeChange={setRangeStartMode} value={rangeStart} onValueChange={setRangeStart} sourceDate={sourceRange.start} sourceLabel={t("addItemDialog.manual.startOfSourceData")} />
+                                                                    <DateRefField label={t("addItemDialog.manual.rangeEnd")} mode={rangeEndMode} onModeChange={setRangeEndMode} value={rangeEnd} onValueChange={setRangeEnd} sourceDate={sourceRange.end} sourceLabel={t("addItemDialog.manual.endOfSourceData")} />
                                                                     </div>
                                                                     )}
 
-                                      {scheduleKind === "entire" && <div className="flex flex-col gap-1.5"><label className="text-sm font-medium">Reference date</label><input type="date" value={referenceDate} onChange={(e) => setReferenceDate(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /><p className="text-xs text-muted-foreground">The relevant day is taken from this date: weekday for weeks, day-of-month for months, or month/day for years.</p></div>}
+                                      {scheduleKind === "entire" && <div className="flex flex-col gap-1.5"><label className="text-sm font-medium">{t("addItemDialog.manual.referenceDate")}</label><input type="date" value={referenceDate} onChange={(e) => setReferenceDate(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /><p className="text-xs text-muted-foreground">{t("addItemDialog.manual.referenceDateHint")}</p></div>}
                                       </div>
-                                      <DialogFooter className="pt-2">{editingItem ? <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>Cancel</Button> : <Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>}<Button type="button" onClick={handleManualSubmit} disabled={!isManualValid}>{editingItem ? "Save changes" : "Add item"}</Button></DialogFooter>
+                                      <DialogFooter className="pt-2">{editingItem ? <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>{t("common.cancel")}</Button> : <Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />{t("common.back")}</Button>}<Button type="button" onClick={handleManualSubmit} disabled={!isManualValid}>{t(editingItem ? "addItemDialog.saveChanges" : "addItemDialog.addItem")}</Button></DialogFooter>
                                       </>
                                       )}
 
           {step.kind === "index-series-direction" && (
                                                         <>
-                                                        <DialogHeader><DialogTitle>Add Index Series</DialogTitle><DialogDescription>Choose which end of the imported data raw values settle toward. You&apos;ll pick the PDF table next.</DialogDescription></DialogHeader>
+                                                        <DialogHeader><DialogTitle>{t("addItemDialog.indexSeriesDirection.title")}</DialogTitle><DialogDescription>{t("addItemDialog.indexSeriesDirection.description")}</DialogDescription></DialogHeader>
                                                         <div className="flex flex-col gap-2 pt-2">
-                                                        <label className="text-sm font-medium">Settle to</label>
+                                                        <label className="text-sm font-medium">{t("addItemDialog.settleTo")}</label>
                                                         <select value={direction} onChange={(e) => setDirection(e.target.value as IndexDirection)} className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-                                                        <option value="future">Latest reading (future value)</option>
-                                                        <option value="past">Earliest reading (present value)</option>
+                                                        <option value="future">{t("addItemDialog.readingDirection.futureOption")}</option>
+                                                        <option value="past">{t("addItemDialog.readingDirection.pastOption")}</option>
                                                         </select>
-                                                        <p className="text-xs text-muted-foreground">{direction === "future" ? "Raw values grow forward to the index's most recent reading — what they're worth today." : "Raw values discount back to the index's earliest reading — what they were worth on day one."}</p>
+                                                        <p className="text-xs text-muted-foreground">{direction === "future" ? t("addItemDialog.readingDirection.futureHint") : t("addItemDialog.readingDirection.pastHint")}</p>
                                                         </div>
-                                                        <DialogFooter className="pt-2"><Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button><Button type="button" onClick={handleIndexSeriesDirectionContinue}>Continue</Button></DialogFooter>
+                                                        <DialogFooter className="pt-2"><Button type="button" variant="ghost" onClick={() => setStep({ kind: "picker" })}><ArrowLeft className="mr-2 h-4 w-4" />{t("common.back")}</Button><Button type="button" onClick={handleIndexSeriesDirectionContinue}>{t("addItemDialog.indexSeriesDirection.continue")}</Button></DialogFooter>
                                                         </>
                                                         )}
           </DialogContent>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
+import { useTranslations } from "next-intl"
 import { ChevronDown, ChevronRight, FileText, Link2, Upload } from "lucide-react"
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -23,6 +24,7 @@ type PdfImportDialogProps = {
 };
 
 export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialogProps) {
+  const t = useTranslations();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [result, setResult] = useState<PdfDocument | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialo
       setResult(parsed);
     } catch (error) {
       console.error("Failed to parse PDF:", error);
-      setError(error instanceof Error ? error.message : "Failed to parse PDF.");
+      setError(error instanceof Error ? error.message : t("pdfImportDialog.parseFailed"));
     } finally {
       setLoading(false);
     }
@@ -133,7 +135,7 @@ export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialo
     // console.error, but the dialog used to just close silently either way,
     // leaving the user with no sign that nothing was actually imported.
     if (getItemsFromDatasets(datasets).length === 0) {
-      setUploadError("None of the selected columns produced usable data. Check that you selected one date column and at least one numeric value column per table, and that those columns aren't empty in the preview above.");
+      setUploadError(t("pdfImportDialog.uploadValidationFailed"));
       return;
     }
 
@@ -148,22 +150,22 @@ export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialo
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden sm:max-w-5xl">
         <DialogHeader className="shrink-0">
-          <DialogTitle>Import PDF</DialogTitle>
-          <DialogDescription>Select the columns you want to use from the imported tables. Each table needs exactly one date column and at least one number column selected.</DialogDescription>
+          <DialogTitle>{t("pdfImportDialog.title")}</DialogTitle>
+          <DialogDescription>{t("pdfImportDialog.description")}</DialogDescription>
         </DialogHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
           <div className="shrink-0 rounded-lg border border-dashed p-6">
             <div className="flex items-center gap-3">
               <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={loading}>
                 <FileText className="mr-2 h-4 w-4" />
-                Choose PDF file
+                {t("pdfImportDialog.chooseFile")}
               </Button>
-              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{fileName ?? "No file selected"}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{fileName ?? t("pdfImportDialog.noFileSelected")}</span>
             </div>
             <input ref={fileInputRef} type="file" accept="application/pdf,.pdf" onChange={handleFile} disabled={loading} className="sr-only" />
-            <p className="mt-2 text-xs text-muted-foreground">PDF files only.</p>
+            <p className="mt-2 text-xs text-muted-foreground">{t("pdfImportDialog.pdfOnly")}</p>
           </div>
-          {loading && <div className="shrink-0 rounded-md border bg-muted/50 p-4 text-sm">Parsing PDF...</div>}
+          {loading && <div className="shrink-0 rounded-md border bg-muted/50 p-4 text-sm">{t("pdfImportDialog.parsing")}</div>}
           {error && <div className="shrink-0 rounded-md border border-destructive bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
           {result && (
             <div className="min-h-0 min-w-0 flex-1">
@@ -180,8 +182,8 @@ export function PdfImportDialog({ open, onOpenChange, onUpload }: PdfImportDialo
         <DialogFooter className="shrink-0 flex-col items-stretch gap-2 border-t pt-4 sm:flex-col sm:items-stretch">
           {uploadError && <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">{uploadError}</div>}
           <div className="flex w-full items-center justify-between gap-4">
-            <div className="text-xs text-muted-foreground">{selectedDatasetCount} dataset{selectedDatasetCount === 1 ? "" : "s"} selected · {selectedColumnCount} column{selectedColumnCount === 1 ? "" : "s"} selected</div>
-            <Button onClick={handleUpload} disabled={!result || selectedColumnCount === 0 || loading}><Upload className="mr-2 h-4 w-4" />Upload</Button>
+            <div className="text-xs text-muted-foreground">{t("pdfImportDialog.selectionSummary", { datasets: selectedDatasetCount, columns: selectedColumnCount })}</div>
+            <Button onClick={handleUpload} disabled={!result || selectedColumnCount === 0 || loading}><Upload className="mr-2 h-4 w-4" />{t("pdfImportDialog.upload")}</Button>
           </div>
         </DialogFooter>
       </DialogContent>
@@ -311,6 +313,7 @@ function rootEntryFor(flat: FlatTableEntry[], index: number, joined: Set<string>
 }
 
 function PdfDocumentView({ result, selectedColumns, onToggleColumn, joinedWithPrevious, onToggleJoin }: PdfDocumentViewProps) {
+  const t = useTranslations();
   const [expanded, setExpanded] = useState(true);
   const [expandedTables, setExpandedTables] = useState<Record<string, boolean>>({});
   const [showBlankColumns, setShowBlankColumns] = useState(false);
@@ -327,21 +330,21 @@ function PdfDocumentView({ result, selectedColumns, onToggleColumn, joinedWithPr
         <button type="button" onClick={() => setExpanded((current) => !current)} className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80">
           {expanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
           <div>
-            <div className="text-sm font-semibold">Parse result</div>
-            <div className="text-xs text-muted-foreground">{result.pages.length} pages · {tableCount} tables</div>
+            <div className="text-sm font-semibold">{t("pdfImportDialog.parseResult")}</div>
+            <div className="text-xs text-muted-foreground">{t("pdfImportDialog.pagesTablesSummary", { pages: result.pages.length, tables: tableCount })}</div>
           </div>
         </button>
         <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
           <input type="checkbox" checked={showBlankColumns} onChange={(e) => setShowBlankColumns(e.target.checked)} className="h-3.5 w-3.5 cursor-pointer accent-primary" />
-          Show blank columns
+          {t("pdfImportDialog.showBlankColumns")}
         </label>
       </div>
       {expanded && (
         <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
           {result.pages.map((page) => (
             <div key={page.page} className="mb-8 min-w-0 last:mb-0">
-              <h3 className="mb-3 text-sm font-semibold">Page {page.page}</h3>
-              {page.tables.length === 0 && <p className="text-sm text-muted-foreground">No tables found.</p>}
+              <h3 className="mb-3 text-sm font-semibold">{t("pdfImportDialog.page", { number: page.page })}</h3>
+              {page.tables.length === 0 && <p className="text-sm text-muted-foreground">{t("pdfImportDialog.noTablesFound")}</p>}
               <div className="min-w-0 space-y-3">
                 {page.tables.map((table, tableIndex) => {
                   const key = `${page.page}-${tableIndex}`;
@@ -367,10 +370,10 @@ function PdfDocumentView({ result, selectedColumns, onToggleColumn, joinedWithPr
                       <button type="button" onClick={() => toggleTable(key)} className="flex w-full items-center gap-2 bg-background px-3 py-2 text-left text-sm hover:bg-muted/30">
                         {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                         <span className="min-w-0 flex-1 truncate font-medium">{summary}</span>
-                        {hiddenBlankCount > 0 && <span className="shrink-0 text-xs text-muted-foreground">{hiddenBlankCount} blank hidden</span>}
+                        {hiddenBlankCount > 0 && <span className="shrink-0 text-xs text-muted-foreground">{t("pdfImportDialog.blankHidden", { count: hiddenBlankCount })}</span>}
                         {selected.size > 0 && (
                           <span className={`shrink-0 text-xs font-medium ${isUsable ? "text-emerald-600" : "text-amber-600"}`}>
-                            {isUsable ? "✓ ready" : `${selected.size} selected · needs 1 date + 1 number`}
+                            {isUsable ? t("pdfImportDialog.ready") : t("pdfImportDialog.selectedNeedsMore", { count: selected.size })}
                           </span>
                         )}
                       </button>
@@ -378,7 +381,7 @@ function PdfDocumentView({ result, selectedColumns, onToggleColumn, joinedWithPr
                         <label className="flex shrink-0 cursor-pointer items-center gap-1.5 border-t bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground">
                           <input type="checkbox" checked={isJoined} onChange={() => onToggleJoin(key)} className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-primary" />
                           <Link2 className="h-3.5 w-3.5 shrink-0" />
-                          Continues from the table on page {previousEntry.page} — join columns
+                          {t("pdfImportDialog.continuesFromPage", { page: previousEntry.page })}
                         </label>
                       )}
                       {isExpanded && (

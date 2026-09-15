@@ -223,15 +223,21 @@ function differentSourceColor(originalColor: string): string {
   return hslToHex(hue, SOURCE_COLOR_SATURATION, SOURCE_COLOR_LIGHTNESS);
 }
 
+// t is a minimal structural subset of next-intl's translator, matching the
+// same pattern used in results.ts -- lets this stay a plain module with no
+// next-intl dependency while still letting the caller (which does have
+// hook access) supply translated copy.
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
 // "Name" -> "Name copy" -> "Name copy 2" -> "Name copy 3" ..., skipping
 // whatever's already taken among sibling source names.
-function nextCopyName(baseName: string, existingNames: string[]): string {
+function nextCopyName(baseName: string, existingNames: string[], t: Translate): string {
   const taken = new Set(existingNames);
-  const base = `${baseName} copy`;
+  const base = t("projectEditor.copyName", { name: baseName });
   if (!taken.has(base)) return base;
 
   for (let n = 2; ; n += 1) {
-    const candidate = `${base} ${n}`;
+    const candidate = t("projectEditor.copyNameNumbered", { name: baseName, number: n });
     if (!taken.has(candidate)) return candidate;
   }
 }
@@ -242,10 +248,10 @@ function nextCopyName(baseName: string, existingNames: string[]): string {
 // easy to tell apart at a glance. Any item whose schedule points at
 // "source-start" / "source-end" keeps pointing at whichever source it lives
 // in, so it correctly re-resolves against the new source's own items.
-export function duplicateSource(source: ProjectSource, existingNames: string[]): ProjectSource {
+export function duplicateSource(source: ProjectSource, existingNames: string[], t: Translate): ProjectSource {
   return {
     id: crypto.randomUUID(),
-    name: nextCopyName(source.name, existingNames),
+    name: nextCopyName(source.name, existingNames, t),
     color: differentSourceColor(source.color),
     items: source.items.map((item) => ({ id: crypto.randomUUID(), data: structuredClone(item.data) })),
   };

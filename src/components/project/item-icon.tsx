@@ -10,6 +10,17 @@ import {
 
 import type { ProjectItemData } from "@/lib/projects"
 
+// Suffix under the `addItemDialog.types.*` message namespace for each item
+// type -- shared by every place that needs a translated display name for a
+// type, alongside this file's icon-per-type mapping.
+export const TYPE_MESSAGE_KEY: Record<ProjectItemData["type"], string> = {
+  "timed-values": "timedValues",
+  "index-series": "indexSeries",
+  "compound-index": "compoundIndex",
+  "simple-index": "simpleIndex",
+  "fixed-value": "fixedValue",
+};
+
 export function ItemIcon({ type }: { type: ProjectItemData["type"] }) {
   switch (type) {
     case "timed-values":

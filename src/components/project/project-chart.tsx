@@ -1,7 +1,8 @@
 "use client"
 
+import { useTranslations, useFormatter } from "next-intl"
 import type { ProjectSource } from "@/lib/projects"
-import { computeChartLayout, formatAxisDate, formatAxisValue, REGION_LABEL, REGION_DIRECTION_ARROW } from "@/lib/chart-geometry"
+import { computeChartLayout, formatAxisDate, formatAxisValue, regionLabel, REGION_DIRECTION_ARROW } from "@/lib/chart-geometry"
 
 type Props = { sources: ProjectSource[] };
 
@@ -12,10 +13,12 @@ const MARKER_RADIUS = 4;
 const REGION_LANE_HEIGHT = 16;
 
 export function ProjectChart({ sources }: Props) {
+  const t = useTranslations();
+  const format = useFormatter();
   const layout = computeChartLayout(sources, VIEWBOX_WIDTH, VIEWBOX_HEIGHT, BASE_MARGIN, REGION_LANE_HEIGHT);
 
   if (!layout) {
-    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No data to display yet.</div>;
+    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{t("chart.noData")}</div>;
   }
 
   const { points, regions, margin, xForTime, yForValue, baselineY, tickTimes, yTicks, legendSources } = layout;
@@ -31,10 +34,10 @@ export function ProjectChart({ sources }: Props) {
           <line x1={margin.left} x2={VIEWBOX_WIDTH - margin.right} y1={baselineY} y2={baselineY} stroke="#9ca3af" strokeWidth={1} />
 
           {/* y axis labels */}
-          {yTicks.map((tick, i) => <text key={`ytick-${i}`} x={margin.left - 8} y={yForValue(tick)} textAnchor="end" dominantBaseline="middle" fontSize={11} fill="#6b7280">{formatAxisValue(tick)}</text>)}
+          {yTicks.map((tick, i) => <text key={`ytick-${i}`} x={margin.left - 8} y={yForValue(tick)} textAnchor="end" dominantBaseline="middle" fontSize={11} fill="#6b7280">{formatAxisValue(tick, format.number)}</text>)}
 
           {/* x axis labels */}
-          {tickTimes.map((t, i) => <text key={`xtick-${i}`} x={xForTime(t)} y={VIEWBOX_HEIGHT - margin.bottom + 20} textAnchor="middle" fontSize={11} fill="#6b7280">{formatAxisDate(t)}</text>)}
+          {tickTimes.map((tickTime, i) => <text key={`xtick-${i}`} x={xForTime(tickTime)} y={VIEWBOX_HEIGHT - margin.bottom + 20} textAnchor="middle" fontSize={11} fill="#6b7280">{formatAxisDate(tickTime, format.dateTime)}</text>)}
 
           {/* index-region lanes: one horizontal line per active simple/compound-index item, showing the span it corrects and which end (future/past) points settle toward */}
           {regions.map((region, i) => {
@@ -42,13 +45,13 @@ export function ProjectChart({ sources }: Props) {
                         // an open-ended start has no time to convert -- xForTime(minTime) is always exactly margin.left by construction, so this is equivalent without exposing minTime itself
                         const x1 = region.start ? xForTime(region.start) : margin.left;
                         const x2 = xForTime(region.end);
-                        const settleLabel = region.direction === "future" ? "end (future value)" : "start (present value)";
+                        const settleLabel = t(region.direction === "future" ? "chart.settleFuture" : "chart.settlePast");
                         return (
                                 <g key={`region-${region.sourceName}-${i}`}>
                                 <line x1={x1} x2={x2} y1={laneY} y2={laneY} stroke={region.color} strokeWidth={2} strokeDasharray="4 2">
-                                <title>{`${region.sourceName} · ${REGION_LABEL[region.kind]} index, ${region.start ? region.start.toLocaleDateString() : "…"} → ${region.end.toLocaleDateString()}. Settles to the window's ${settleLabel}.`}</title>
+                                <title>{t("chart.regionTooltip", { sourceName: region.sourceName, kind: regionLabel(t, region.kind), start: region.start ? format.dateTime(region.start) : "…", end: format.dateTime(region.end), settle: settleLabel })}</title>
                                 </line>
-                                <text x={x1} y={laneY - 3} fontSize={9} fill={region.color}>{REGION_LABEL[region.kind]} {REGION_DIRECTION_ARROW[region.direction]}</text>
+                                <text x={x1} y={laneY - 3} fontSize={9} fill={region.color}>{regionLabel(t, region.kind)} {REGION_DIRECTION_ARROW[region.direction]}</text>
                                 </g>
                                 );
                       })}
@@ -61,7 +64,7 @@ export function ProjectChart({ sources }: Props) {
                                 <g key={`marker-${point.sourceId}-${i}`}>
                                 <line x1={x} x2={x} y1={baselineY} y2={valueY} stroke={point.color} strokeWidth={2} />
                                 <circle cx={x} cy={valueY} r={MARKER_RADIUS} fill={point.color}>
-                                <title>{`${point.sourceName}: ${point.value} (${point.time.toLocaleDateString()})`}</title>
+                                <title>{t("chart.pointTooltip", { sourceName: point.sourceName, value: format.number(point.value), date: format.dateTime(point.time) })}</title>
                                 </circle>
                                 </g>
                                 );
