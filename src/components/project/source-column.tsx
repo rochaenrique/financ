@@ -99,6 +99,7 @@ export function SourceColumn({ source, onAddItems, onEditItem, onDeleteItem, onT
                             </div>)}
           <Button variant="ghost" className="h-10 w-full bg-slate-300 hover:bg-slate-400" onClick={() => setAddItemOpen(true)}>
           <Plus className="h-4 w-4" />
+          <span className="sr-only">{t("sourceColumn.addItemSr")}</span>
           </Button>
           </div>
           <div className="flex-1" />

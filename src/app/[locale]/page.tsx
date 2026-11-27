@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslations, useFormatter } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Search, Folder, Pencil, Trash2, Plus, Upload } from "lucide-react";
@@ -12,16 +12,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-import { createProject, deleteProject, getProject, getProjectIndex, parseProjectExport, renameProject, saveProject, type Project } from "@/lib/projects";
+import { createProject, deleteProject, getProject, parseProjectExport, renameProject, saveProject, type Project } from "@/lib/projects";
+import { useProjectIndex } from "@/lib/use-projects";
 import { LanguageSwitcher } from "@/components/project/language-switcher";
 
 type ImportState = { kind: "collision"; incoming: Project; existing: Project } | { kind: "error"; message: string };
 
+const NO_PROJECTS: Project[] = [];
 
 export default function Home() {
   const t = useTranslations();
   const format = useFormatter();
-  const [projects, setProjects] = useState<Project[]>([]);
+  // The list is read straight from localStorage, so the lib functions below
+  // (create/delete/rename/save) are all that's needed to update it -- they
+  // notify the store and this hook re-renders with the new data.
+  const projects = useProjectIndex() ?? NO_PROJECTS;
   const [search, setSearch] = useState("");
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [projectToRename, setProjectToRename] = useState<Project | null>(null);
@@ -29,10 +34,6 @@ export default function Home() {
   const [importState, setImportState] = useState<ImportState | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-              setProjects(getProjectIndex());
-            }, []);
-  
   const filteredProjects = useMemo(() => {
                                      const query = search.trim().toLowerCase();
                                      
@@ -44,38 +45,32 @@ export default function Home() {
                                    }, [projects, search]);
   
   function handleCreateProject() {
-    const project = createProject(t("projectList.defaultProjectName"));
-    setProjects((current) => [...current, project]);
+    createProject(t("projectList.defaultProjectName"));
   }
-  
+
   function handleDeleteProject() {
     if (!projectToDelete) {
       return;
     }
-    
+
     deleteProject(projectToDelete.id);
-    setProjects((current) => current.filter((project) => project.id !== projectToDelete.id));
     setProjectToDelete(null);
   }
-  
+
   function handleRenameProject() {
     if (!projectToRename) return;
-    
+
     const name = renameValue.trim();
     if (!name) return;
-    
-    const renamed = renameProject(projectToRename.id, name);
-    if (renamed) {
-      setProjects((current) => current.map((project) => project.id === renamed.id ? renamed : project));
-    }
-    
+
+    renameProject(projectToRename.id, name);
+
     setProjectToRename(null);
     setRenameValue("");
   }
 
   function finishImport(project: Project) {
     saveProject(project);
-    setProjects(getProjectIndex());
     setImportState(null);
   }
 

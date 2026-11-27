@@ -43,3 +43,8 @@ next-env.d.ts
 test-data
 project.4coder
 build.bat
+# test output
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

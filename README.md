@@ -1,5 +1,6 @@
 # financ
 
+[![CI](https://github.com/rochaenrique/financ/actions/workflows/ci.yml/badge.svg)](https://github.com/rochaenrique/financ/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
 **The quickest way to calculate and compare a bank proposal.**
@@ -80,6 +81,10 @@ Open [http://localhost:3000](http://localhost:3000). You will be redirected to a
 | `npm run build` | Create a production build |
 | `npm start` | Serve the production build |
 | `npm run lint` | Run ESLint |
+| `npm run typecheck` | Type-check the whole project |
+| `npm test` | Run the unit tests |
+| `npm run test:coverage` | Run the unit tests with a coverage report |
+| `npm run test:e2e` | Run the end-to-end tests |
 
 ## Tech stack
 
@@ -89,9 +94,37 @@ Open [http://localhost:3000](http://localhost:3000). You will be redirected to a
 - [jsPDF](https://github.com/parallax/jsPDF) and [jspdf-autotable](https://github.com/simonbengtsson/jsPDF-AutoTable) for report export
 - [next-intl](https://next-intl.dev) for translations and locale-aware formatting
 
+## Testing
+
+Calculation mistakes are expensive in a tool people use to compare loans, so the logic that produces the numbers is tested directly, and the main user flows are tested end to end.
+
+```bash
+npm test                # unit tests (Vitest), runs in a couple of seconds
+npm run test:coverage   # the same, with a coverage report for src/lib
+npx playwright install chromium   # once, to download the test browser
+npm run test:e2e        # end-to-end tests (Playwright), builds and serves the app itself
+```
+
+**Unit tests** (`src/**/*.test.ts`) check the calculations against results worked out by hand rather than against the implementation. For example, 1,000 compounded at 1% per day for 10 days has to equal `1000 × 1.01¹⁰`. They cover index correction (compound, simple, and index series, settling forward and back), schedule expansion and date references, number and date parsing from PDFs (`15/03/2024`, `1.234,56`), project storage and JSON export/import, the results table math, chart geometry, the PDF-to-items converter, and the PDF report generator.
+
+**Locale parity test** (`src/i18n/messages.test.ts`) makes sure English, Spanish, and Portuguese have exactly the same keys, valid message syntax, and matching placeholders, and that every message key used in the code exists.
+
+**End-to-end tests** (`e2e/`) drive the production build in a real browser: language detection and persistence, building a proposal and reading its totals, disabling and duplicating items, a JSON export and import round trip, and downloading the PDF report. They only touch the browser's own storage, so they can also be pointed at a deployed copy:
+
+```bash
+E2E_BASE_URL=https://your-deployment.example.com npm run test:e2e
+```
+
+**Not covered yet:** the PDF table parser itself (`src/lib/pdf-import.ts`), which needs pdf.js running in a browser, so it is excluded from the coverage report rather than counted as tested.
+
+### Continuous integration
+
+[GitHub Actions](.github/workflows/ci.yml) runs on every push to `main` and every pull request. One job runs lint, type-check, the unit tests with coverage, and a production build. A second job runs the end-to-end suite in Chromium and uploads the Playwright report if anything fails.
+
 ## Project structure
 
 ```
+e2e/                 End-to-end tests (Playwright)
 messages/            Translations, one JSON file per language
 src/
   app/[locale]/      Pages: project list and project editor
@@ -102,7 +135,10 @@ src/
     valuation.ts     Schedules, index correction, and totals
     results.ts       Per-source results shown in the table and report
     pdf-report.ts    PDF report generation
+    *.test.ts        Unit tests, next to the code they cover
+  test/              Shared test helpers and fixtures
   proxy.ts           Locale detection and redirects
+.github/workflows/   CI
 ```
 
 ## Adding a language

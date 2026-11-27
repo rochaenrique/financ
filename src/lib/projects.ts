@@ -259,22 +259,63 @@ export function duplicateSource(source: ProjectSource, existingNames: string[], 
 
 const PROJECT_INDEX_KEY = "projects:index";
 
+// localStorage is the app's only data store, so React reads it through
+// useSyncExternalStore (see use-projects.ts) rather than copying it into
+// component state from an effect. These are the store's three pieces: raw
+// snapshots (strings compare by value, so React only re-renders when the
+// stored data actually changes), a subscribe function, and a notification
+// fired after every write. Every mutation funnels through saveProjectIndex
+// (saveProject and deleteProject both end there), so one notify covers all.
+const storageListeners = new Set<() => void>();
+
+export function subscribeToStorage(listener: () => void): () => void {
+  storageListeners.add(listener);
+  // fires for writes made by *other* tabs; same-tab writes notify below
+  window.addEventListener("storage", listener);
+  return () => {
+    storageListeners.delete(listener);
+    window.removeEventListener("storage", listener);
+  };
+}
+
+export function getProjectIndexSnapshot(): string | null {
+  return localStorage.getItem(PROJECT_INDEX_KEY);
+}
+
+export function getProjectSnapshot(id: string): string | null {
+  return localStorage.getItem(id);
+}
+
+export function parseProjectIndex(raw: string | null): Project[] {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export function parseStoredProject(raw: string | null): Project | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export function getProjectIndex(): Project[] {
   if (typeof window === "undefined") {
     return [];
   }
-  
-  const value = localStorage.getItem(PROJECT_INDEX_KEY);
-  
-  if (!value) {
-    return [];
-  }
-  
-  try {
-    return JSON.parse(value);
-  } catch {
-    return [];
-  }
+
+  return parseProjectIndex(getProjectIndexSnapshot());
 }
 
 export function saveProjectIndex(projects: Project[]) {
@@ -282,24 +323,15 @@ export function saveProjectIndex(projects: Project[]) {
                        PROJECT_INDEX_KEY,
                        JSON.stringify(projects)
                        );
+  storageListeners.forEach((listener) => listener());
 }
 
 export function getProject(id: string): Project | null {
   if (typeof window === "undefined") {
     return null;
   }
-  
-  const value = localStorage.getItem(id);
-  
-  if (!value) {
-    return null;
-  }
-  
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
+
+  return parseStoredProject(getProjectSnapshot(id));
 }
 
 export function saveProject(project: Project) {

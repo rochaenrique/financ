@@ -59,6 +59,7 @@
   },
   "projectEditor": {
     "defaultSourceName": "New Source",
+    "addSourceSr": "Add source",
     "copyName": "{name} copy",
     "copyNameNumbered": "{name} copy {number}",
     "topbar": {
@@ -192,6 +193,7 @@
   },
   "sourceColumn": {
     "duplicateSourceSr": "Duplicate source",
+    "addItemSr": "Add item",
     "deleteSourceSr": "Delete source",
     "enableItemSr": "Enable item",
     "disableItemSr": "Disable item",

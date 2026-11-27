@@ -59,6 +59,7 @@
   },
   "projectEditor": {
     "defaultSourceName": "Nova Fonte",
+    "addSourceSr": "Adicionar fonte",
     "copyName": "{name} cópia",
     "copyNameNumbered": "{name} cópia {number}",
     "topbar": {
@@ -192,6 +193,7 @@
   },
   "sourceColumn": {
     "duplicateSourceSr": "Duplicar fonte",
+    "addItemSr": "Adicionar item",
     "deleteSourceSr": "Excluir fonte",
     "enableItemSr": "Habilitar item",
     "disableItemSr": "Desabilitar item",

@@ -1,7 +1,7 @@
 "use client"
 
 import React from 'react';
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useParams } from "next/navigation"
 import { useTranslations, useFormatter } from "next-intl"
 import { useRouter } from "@/i18n/navigation"
@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@/lib/utils";
 
 import {
-  getProject,
   saveProject,
   duplicateSource,
   randomSourceColor,
@@ -21,16 +20,12 @@ import {
   type ProjectItem,
   type ProjectSource,
 } from "@/lib/projects"
+import { useProject } from "@/lib/use-projects"
 
 import { RESULT_COLUMNS, resultColumnLabel, resultColumnTitle, type ColumnKey } from "@/lib/results"
 import { generateProjectReportPdf, currencyOptionLabel, CURRENCY_OPTIONS, type CurrencyCode } from "@/lib/pdf-report"
 import { ProjectEditor } from "@/components/project/project-editor"
 import { LanguageSwitcher } from "@/components/project/language-switcher"
-import { getSourcedFromDatasets } from "@/lib/pdf-datasets"
-
-import dynamic from "next/dynamic"
-
-import { type PdfSelectedDataset } from "@/components/project/pdf-import-dialog"
 
 function sanitizeFilename(name: string): string {
   return name.trim().replace(/[^a-z0-9 _-]/gi, "_") || "project";
@@ -60,19 +55,17 @@ function toPdfFilename(input: string, project: Project): string {
 }
 
 export default function ProjectPage() {
-  
-  const PdfImportDialog = dynamic(() => import("@/components/project/pdf-import-dialog")
-                                  .then((module) => module.PdfImportDialog), { ssr: false });
-  
   const t = useTranslations();
   const format = useFormatter();
   const params = useParams();
   const router = useRouter();
 
   const id = params.id as string;
-  
-  const [project, setProject] = useState<Project | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // Read straight from localStorage: undefined while not loaded yet (server
+  // render / hydration), null when no such project exists. Saving through
+  // saveProject() notifies the store, so the page re-renders by itself.
+  const project = useProject(id);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportFilename, setReportFilename] = useState("");
   const [includedSourceIds, setIncludedSourceIds] = useState<Set<string>>(new Set());
@@ -82,13 +75,7 @@ export default function ProjectPage() {
   const [reportCurrency, setReportCurrency] = useState<CurrencyCode>("NONE");
   const [includeToc, setIncludeToc] = useState(false);
 
-  useEffect(() => {
-              const loaded = getProject(id);
-              setProject(loaded);
-              setLoading(false);
-            }, [id]);
-  
-  if (loading) {
+  if (project === undefined) {
     return (
             <main className="flex min-h-screen items-center justify-center">
             <p className="text-sm text-muted-foreground">
@@ -113,23 +100,6 @@ export default function ProjectPage() {
             );
   }
   
-  /*
-  const handlePdfUpload = (datasets: PdfSelectedDataset[]) => {
-    if (!project) return;
-    
-    const newSources = getSourcedFromDatasets(datasets);
-    
-    const updatedProject: Project = {
-      ...project,
-      modified: new Date().toISOString(),
-      sources: [...project.sources, ...newSources],
-    };
-    
-    saveProject(updatedProject);
-    setProject(updatedProject);
-  };
-*/
-  
   const handleAddSource = (items: ProjectItem[]) => {
     if (!project) return;
     
@@ -147,7 +117,6 @@ export default function ProjectPage() {
     };
     
     saveProject(updatedProject);
-    setProject(updatedProject);
   };
   
   const handleAddItems = (sourceId: string, items: ProjectItem[]) => {
@@ -164,7 +133,6 @@ export default function ProjectPage() {
     };
 
     saveProject(updatedProject);
-    setProject(updatedProject);
   };
 
   const handleEditItem = (sourceId: string, item: ProjectItem) => {
@@ -181,7 +149,6 @@ export default function ProjectPage() {
     };
 
     saveProject(updatedProject);
-    setProject(updatedProject);
   };
 
   const handleDeleteItem = (sourceId: string, itemId: string) => {
@@ -198,7 +165,6 @@ export default function ProjectPage() {
     };
 
     saveProject(updatedProject);
-    setProject(updatedProject);
   };
 
   const handleToggleItemDisabled = (sourceId: string, itemId: string) => {
@@ -215,7 +181,6 @@ export default function ProjectPage() {
     };
 
     saveProject(updatedProject);
-    setProject(updatedProject);
   };
 
   const handleDeleteSource = (sourceId: string) => {
@@ -228,7 +193,6 @@ export default function ProjectPage() {
     };
 
     saveProject(updatedProject);
-    setProject(updatedProject);
   };
 
   const handleExport = () => {
@@ -301,7 +265,6 @@ export default function ProjectPage() {
     };
 
     saveProject(updatedProject);
-    setProject(updatedProject);
   };
 
   return (

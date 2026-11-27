@@ -8,6 +8,7 @@ import { SourceColumn } from "./source-column"
 import { AddItemDialog } from "./add-item-dialog"
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 
 type Props = {
   project: Project;
@@ -20,8 +21,9 @@ type Props = {
   onDeleteSource: (sourceId: string) => void;
 }
 export function ProjectEditor({ project, onAddSource, onAddItem, onEditItem, onDeleteItem, onToggleItemDisabled, onDuplicateSource, onDeleteSource }: Props) {
+  const t = useTranslations();
   const [addSourceOpen, setAddSourceOpen] = useState(false);
-  
+
   return (
           <div className="flex min-h-0 flex-1 flex-col gap-2 bg-muted p-2">
           <section className="grid min-h-0 flex-1 grid-cols-2 gap-2">
@@ -44,6 +46,7 @@ export function ProjectEditor({ project, onAddSource, onAddItem, onEditItem, onD
           <div className="absolute left-1/2 top-1/2 h-32 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-emerald-400" />
           <div className="absolute left-1/2 top-1/2 h-0.5 w-32 -translate-x-1/2 -translate-y-1/2 bg-emerald-400" />
           </div>
+          <span className="sr-only">{t("projectEditor.addSourceSr")}</span>
           </button>
           </section>
           

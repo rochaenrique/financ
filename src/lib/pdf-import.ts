@@ -120,10 +120,15 @@ function pushPdfRulingSegment(rulings: PdfRuling[], x0: number, y0: number, x1: 
   // diagonal segments are never part of a table grid; ignore them
 }
 
-// NOTE: `page` is loosely typed (rather than pdfjsLib.PDFPageProxy) because
-// getOperatorList()'s exact result shape varies across pdfjs-dist versions.
-async function extractPdfRulings(page: any): Promise<PdfRuling[]> {
-  let opList: { fnArray: number[]; argsArray: any[] };
+// NOTE: `page` is typed as just the one method this function needs (rather
+// than pdfjsLib.PDFPageProxy) because getOperatorList()'s exact result shape
+// varies across pdfjs-dist versions. Each op's arguments are `unknown` and
+// narrowed with a cast where they're read below.
+type PdfOperatorList = { fnArray: number[]; argsArray: unknown[] };
+type PdfPageWithOperators = { getOperatorList(): Promise<PdfOperatorList> };
+
+async function extractPdfRulings(page: PdfPageWithOperators): Promise<PdfRuling[]> {
+  let opList: PdfOperatorList;
   try {
     opList = await page.getOperatorList();
   } catch {
